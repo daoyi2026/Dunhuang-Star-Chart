@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#14110e" />
+  <meta name="description" content="敦煌星图：一幅可交互的暗夜星河古卷。" />
+  <title>敦煌星图 · 星河遗卷</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <main id="app" aria-label="敦煌星图交互画布"></main>
+  <button id="soundToggle" class="sound-toggle" type="button" aria-pressed="false">
+    <span class="sound-dot" aria-hidden="true"></span><span id="soundLabel">听星河</span>
+  </button>
+  <div id="soundHint" class="sound-hint">点击「听星河」开启音乐</div>
+  <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
+  <script src="./music.js"></script>
+  <script src="./sketch.js"></script>
+</body>
+</html>
