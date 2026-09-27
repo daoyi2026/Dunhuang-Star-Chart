@@ -108,24 +108,55 @@ function draw(){
   const ease=1-Math.exp(-dt*6.5);
   groups.forEach(g=>{g.focus=lerp(g.focus,g.i===chosen?1:0,ease*.74);g.light=lerp(g.light,g.i===chosen?1:(g.i===hoverId?.26:0),ease);g.flow+=dt*(.18+g.light*.16)});
   if(chosen>=0)drawFocusVeil(groups[chosen]);
-  groups.forEach(g=>{if(g.i!==chosen)drawGroup(g,chosen>=0?.12:1)});
+  groups.forEach(g=>{if(g.i!==chosen)drawGroup(g,chosen>=0?.055:1)});
   if(chosen>=0){const g=groups[chosen];if(g.name==='紫微垣')drawZiweiArchitecture(g);else drawConstellationEcho(g);drawGroup(g,1)}
   drawRings(dt);drawSeal();pop();
 }
 
 function drawMilkyDust(){
-  push();blendMode(SCREEN);noStroke();
-  milkyDust.forEach(s=>{const pulse=.7+.3*sin(clock*s.v+s.p),c=s.tone<.42?[172,210,219]:s.tone<.72?[198,188,220]:[226,207,170];fill(c[0],c[1],c[2],s.a*pulse*.72);circle(s.x,s.y,s.s*(.85+pulse*.28));if(s.bright>.94){fill(c[0],c[1],c[2],s.a*.12);circle(s.x,s.y,s.s*6.5)}});
+  push();
+  blendMode(SCREEN);
+  noStroke();
+  milkyDust.forEach(s=>{
+    const pulse=.72+.28*sin(clock*s.v+s.p);
+    const c=s.tone<.42?[157,198,210]:s.tone<.72?[184,176,211]:[222,203,168];
+    const a=s.a*pulse*.20;
+    fill(c[0],c[1],c[2],a);
+    circle(s.x,s.y,s.s*(.8+pulse*.2));
+    if(s.bright>.975){
+      fill(c[0],c[1],c[2],a*.18);
+      circle(s.x,s.y,s.s*5.5);
+    }
+  });
   pop();
 }
+
 function drawAmbient(){
   push();blendMode(SCREEN);noStroke();
   ambient.forEach(s=>{const pulse=.62+.38*sin(clock*s.v+s.p),c=s.tone<.45?[191,214,219]:s.tone<.72?[207,198,222]:[226,202,155];fill(c[0],c[1],c[2],s.a*pulse*.44);circle(s.x,s.y,s.s*(.9+pulse*.18));if(s.s>ts(.8)&&pulse>.82){fill(c[0],c[1],c[2],s.a*.07);circle(s.x,s.y,s.s*5)}});
   pop();
 }
 function drawOrbitalTrails(){
-  push();noFill();
-  orbiters.forEach((o,i)=>{stroke(i%3===0?154:180,i%3===0?184:168,i%3===0?188:132,o.alpha);strokeWeight(ts(.36));arc(o.cx,o.cy,o.rx*2,o.ry*2,o.start,o.start+o.span);const p=(clock*o.speed+o.phase)%1,a=o.start+o.span*p,x=o.cx+cos(a)*o.rx,y=o.cy+sin(a)*o.ry;noStroke();fill(235,217,178,38);circle(x,y,ts(4.8));fill(244,229,199,110);circle(x,y,ts(.9))});
+  push();
+  const ctx=drawingContext;
+  ctx.save();
+  ctx.setLineDash([ts(1.2),ts(7.5)]);
+  orbiters.forEach((o,i)=>{
+    noFill();
+    stroke(i%3===0?137:176,i%3===0?169:162,i%3===0?180:139,o.alpha*.52);
+    strokeWeight(ts(.30));
+    arc(o.cx,o.cy,o.rx*2,o.ry*2,o.start,o.start+o.span);
+
+    const p=(clock*o.speed+o.phase)%1;
+    const a=o.start+o.span*p;
+    const x=o.cx+cos(a)*o.rx, y=o.cy+sin(a)*o.ry;
+    noStroke();
+    fill(225,211,180,19);
+    circle(x,y,ts(3.8));
+    fill(244,231,201,70);
+    circle(x,y,ts(.72));
+  });
+  ctx.restore();
   pop();
 }
 
@@ -167,28 +198,195 @@ function drawConstellationEcho(g){
 }
 
 function drawZiweiArchitecture(g){
-  const f=focusEase(g);if(f<.025)return;const build=constrain((f-.08)/.82,0,1),detail=constrain((f-.38)/.62,0,1);push();applyTransform(g);
-  const pts=g.pts,centroid=pts.reduce((acc,p)=>({x:acc.x+p.x,y:acc.y+p.y}),{x:0,y:0});centroid.x/=pts.length;centroid.y/=pts.length;
-  const inner=pts.map(p=>({x:lerp(p.x,centroid.x,.115),y:lerp(p.y,centroid.y,.115)}));
-  push();blendMode(SCREEN);noStroke();for(let i=4;i>=0;i--){fill(77,103,111,(3.2+(4-i)*1.4)*f);ellipse(centroid.x,centroid.y+ts(18),ts(480+i*55),ts(255+i*34))}pop();
-  drawProgressivePath(inner,build,[168,183,162],42,ts(.62),false);drawProgressivePath(pts,build,[223,196,141],58,ts(.56),false);
-  const strutProgress=constrain((build-.12)/.72,0,1);
-  for(let i=0;i<pts.length;i++){const local=constrain(strutProgress*pts.length-i,0,1);if(local<=0)continue;const a=pts[i],b=inner[i];stroke(171,185,165,34*local);strokeWeight(ts(.46));line(a.x,a.y,lerp(a.x,b.x,local),lerp(a.y,b.y,local));drawNodeEave(a,b,local,i)}
-  const p6=pts[6],p7=pts[7],p8=pts[8];drawGatehouse(p6,p7,p8,detail,centroid);drawCornerTower(pts[0],inner[0],detail,-1);drawCornerTower(pts[14],inner[14],detail,1);
-  if(detail>0){stroke(151,173,169,22*detail);strokeWeight(ts(.42));drawingContext.setLineDash([ts(3),ts(7)]);line(p7.x,p7.y,lerp(p7.x,centroid.x,.94),lerp(p7.y,centroid.y,.94));drawingContext.setLineDash([]);noFill();stroke(202,185,146,25*detail);ellipse(centroid.x,centroid.y,ts(92),ts(48));ellipse(centroid.x,centroid.y,ts(58),ts(30))}
+  const f=focusEase(g);
+  if(f<.02)return;
+
+  const build=constrain((f-.04)/.72,0,1);
+  const reveal=constrain((f-.22)/.70,0,1);
+
+  push();
+  applyTransform(g);
+
+  const pts=g.pts;
+  const c=pts.reduce((a,p)=>({x:a.x+p.x,y:a.y+p.y}),{x:0,y:0});
+  c.x/=pts.length;c.y/=pts.length;
+
+  push();
+  blendMode(SCREEN);
+  noStroke();
+  for(let i=4;i>=0;i--){
+    fill(60,91,104,(1.6+(4-i)*.9)*f);
+    ellipse(c.x,c.y+ts(8),ts(360+i*62),ts(205+i*34));
+  }
+  pop();
+
+  const inner=pts.map(p=>({
+    x:lerp(p.x,c.x,.085),
+    y:lerp(p.y,c.y,.085)
+  }));
+
+  drawZiweiWallBand(pts,inner,build,c);
+
+  [0,4,10,14].forEach((idx,k)=>{
+    const p=constrain((reveal-k*.08)/(.70),0,1);
+    if(p>0)drawZiweiStarTower(pts[idx],inner[idx],c,p,idx===0||idx===14?1.18:.88);
+  });
+
+  drawZiweiInnerPalace(pts,c,reveal);
+
+  if(reveal>.22){
+    const p=constrain((reveal-.22)/.78,0,1);
+    noFill();
+    stroke(126,158,166,28*p);
+    strokeWeight(ts(.38));
+    drawingContext.setLineDash([ts(2.4),ts(6.6)]);
+    line(pts[0].x,pts[0].y,pts[14].x,pts[14].y);
+    line((pts[0].x+pts[14].x)/2,(pts[0].y+pts[14].y)/2,pts[7].x,pts[7].y);
+    drawingContext.setLineDash([]);
+  }
+
   pop();
 }
-function drawProgressivePath(points,progress,color,alpha,weight,closePath=false){const total=closePath?points.length:points.length-1;for(let i=0;i<total;i++){const local=constrain(progress*total-i,0,1);if(local<=0)continue;const a=points[i],b=points[(i+1)%points.length];stroke(color[0],color[1],color[2],alpha*local);strokeWeight(weight);line(a.x,a.y,lerp(a.x,b.x,local),lerp(a.y,b.y,local))}}
-function drawNodeEave(outer,inner,progress,index){if(progress<=0)return;const dx=inner.x-outer.x,dy=inner.y-outer.y,len=max(1,sqrt(dx*dx+dy*dy)),px=-dy/len,py=dx/len,w=ts(7+(index%3)*1.6)*progress;stroke(215,191,145,35*progress);strokeWeight(ts(.42));line(inner.x-px*w,inner.y-py*w,inner.x+px*w,inner.y+py*w);line(inner.x-px*w,inner.y-py*w,inner.x+dx/len*ts(5),inner.y+dy/len*ts(5));line(inner.x+px*w,inner.y+py*w,inner.x+dx/len*ts(5),inner.y+dy/len*ts(5))}
-function drawGatehouse(left,mid,right,p,centroid){
-  if(p<=0)return;const baseY=(left.y+mid.y+right.y)/3,centerX=mid.x,towardX=centroid.x-centerX,towardY=centroid.y-baseY,len=max(1,sqrt(towardX*towardX+towardY*towardY)),ux=towardX/len,uy=towardY/len,px=-uy,py=ux,half=min(dist(left.x,left.y,right.x,right.y)*.43,ts(82)),rise=ts(72)*p;
-  const baseL={x:centerX-px*half,y:baseY-py*half},baseR={x:centerX+px*half,y:baseY+py*half},topC={x:centerX+ux*rise,y:baseY+uy*rise},topL={x:topC.x-px*half*.58,y:topC.y-py*half*.58},topR={x:topC.x+px*half*.58,y:topC.y+py*half*.58};
-  stroke(227,202,151,58*p);strokeWeight(ts(.58));noFill();line(baseL.x,baseL.y,baseR.x,baseR.y);line(baseL.x,baseL.y,topL.x,topL.y);line(baseR.x,baseR.y,topR.x,topR.y);
-  const e1L={x:topC.x-px*half*.82-ux*ts(5),y:topC.y-py*half*.82-uy*ts(5)},e1R={x:topC.x+px*half*.82-ux*ts(5),y:topC.y+py*half*.82-uy*ts(5)};line(e1L.x,e1L.y,topC.x+ux*ts(20),topC.y+uy*ts(20));line(topC.x+ux*ts(20),topC.y+uy*ts(20),e1R.x,e1R.y);
-  const upper={x:topC.x+ux*ts(31),y:topC.y+uy*ts(31)},uL={x:upper.x-px*half*.5-ux*ts(3),y:upper.y-py*half*.5-uy*ts(3)},uR={x:upper.x+px*half*.5-ux*ts(3),y:upper.y+py*half*.5-uy*ts(3)};line(uL.x,uL.y,upper.x+ux*ts(14),upper.y+uy*ts(14));line(upper.x+ux*ts(14),upper.y+uy*ts(14),uR.x,uR.y);
-  const gw=half*.3;line(centerX-px*gw,baseY-py*gw,centerX-px*gw+ux*rise*.48,baseY-py*gw+uy*rise*.48);line(centerX+px*gw,baseY+py*gw,centerX+px*gw+ux*rise*.48,baseY+py*gw+uy*rise*.48);
+
+function drawZiweiWallBand(outer,inner,progress,c){
+  const segCount=outer.length-1;
+  for(let i=0;i<segCount;i++){
+    const local=constrain(progress*segCount-i,0,1);
+    if(local<=0)continue;
+    const a=outer[i],b=outer[i+1],ia=inner[i],ib=inner[i+1];
+    const bx=lerp(a.x,b.x,local),by=lerp(a.y,b.y,local);
+    const ibx=lerp(ia.x,ib.x,local),iby=lerp(ia.y,ib.y,local);
+
+    stroke(225,190,129,80*local);
+    strokeWeight(ts(.62));
+    line(a.x,a.y,bx,by);
+
+    stroke(119,153,160,50*local);
+    strokeWeight(ts(.46));
+    line(ia.x,ia.y,ibx,iby);
+
+    const dx=b.x-a.x,dy=b.y-a.y,len=max(1,sqrt(dx*dx+dy*dy));
+    const steps=max(1,floor(len/ts(26)));
+    for(let k=0;k<=steps;k++){
+      const t=k/steps;
+      if(t>local)break;
+      const ox=lerp(a.x,b.x,t),oy=lerp(a.y,b.y,t);
+      const ix=lerp(ia.x,ib.x,t),iy=lerp(ia.y,ib.y,t);
+      stroke(169,177,155,24*local);
+      strokeWeight(ts(.34));
+      line(ox,oy,ix,iy);
+    }
+  }
+
+  outer.forEach((p,i)=>{
+    const local=constrain(progress*outer.length-i*.34,0,1);
+    if(local<=0)return;
+    const v={x:c.x-p.x,y:c.y-p.y};
+    const len=max(1,sqrt(v.x*v.x+v.y*v.y)),ux=v.x/len,uy=v.y/len,px=-uy,py=ux;
+    const w=ts(8.5)*local;
+    stroke(229,201,146,48*local);
+    strokeWeight(ts(.4));
+    line(p.x-px*w,p.y-py*w,p.x+px*w,p.y+py*w);
+    line(p.x-px*w,p.y-py*w,p.x+ux*ts(5),p.y+uy*ts(5));
+    line(p.x+px*w,p.y+py*w,p.x+ux*ts(5),p.y+uy*ts(5));
+  });
 }
-function drawCornerTower(anchor,inner,p,side){if(p<=0)return;const dx=inner.x-anchor.x,dy=inner.y-anchor.y,len=max(1,sqrt(dx*dx+dy*dy)),ux=dx/len,uy=dy/len,px=-uy,py=dx/len,rise=ts(44)*p,half=ts(25)*p,top={x:inner.x+ux*rise,y:inner.y+uy*rise};stroke(204,184,145,43*p);strokeWeight(ts(.48));noFill();line(inner.x-px*half,inner.y-py*half,top.x-px*half*.65,top.y-py*half*.65);line(inner.x+px*half,inner.y+py*half,top.x+px*half*.65,top.y+py*half*.65);line(top.x-px*half*.95-ux*ts(4),top.y-py*half*.95-uy*ts(4),top.x+ux*ts(11),top.y+uy*ts(11));line(top.x+ux*ts(11),top.y+uy*ts(11),top.x+px*half*.95-ux*ts(4),top.y+py*half*.95-uy*ts(4))}
+
+function drawZiweiStarTower(anchor,inner,c,p,scale=1){
+  const vx=c.x-anchor.x,vy=c.y-anchor.y,len=max(1,sqrt(vx*vx+vy*vy));
+  const ux=vx/len,uy=vy/len,px=-uy,py=ux;
+  const rise=ts(34)*scale*p,half=ts(22)*scale*p;
+  const base={x:inner.x,y:inner.y};
+  const top={x:base.x+ux*rise,y:base.y+uy*rise};
+
+  noFill();
+  stroke(220,195,150,66*p);
+  strokeWeight(ts(.5));
+  line(base.x-px*half,base.y-py*half,top.x-px*half*.58,top.y-py*half*.58);
+  line(base.x+px*half,base.y+py*half,top.x+px*half*.58,top.y+py*half*.58);
+
+  const roofCenter={x:top.x+ux*ts(8)*scale,y:top.y+uy*ts(8)*scale};
+  const eave=half*.92;
+  line(top.x-px*eave-ux*ts(4),top.y-py*eave-uy*ts(4),roofCenter.x,roofCenter.y);
+  line(roofCenter.x,roofCenter.y,top.x+px*eave-ux*ts(4),top.y+py*eave-uy*ts(4));
+  stroke(130,162,168,35*p);
+  line(anchor.x,anchor.y,roofCenter.x,roofCenter.y);
+}
+
+function drawZiweiInnerPalace(pts,c,p){
+  if(p<=0)return;
+
+  const L=pts[0],R=pts[14],base=pts[7];
+  const topMid={x:(L.x+R.x)/2,y:(L.y+R.y)/2};
+  const axis={x:base.x-topMid.x,y:base.y-topMid.y};
+  const axisLen=max(1,sqrt(axis.x*axis.x+axis.y*axis.y));
+  const ux=axis.x/axisLen,uy=axis.y/axisLen,px=-uy,py=ux;
+
+  const a1={x:lerp(L.x,topMid.x,.13),y:lerp(L.y,topMid.y,.13)};
+  const b1={x:lerp(R.x,topMid.x,.13),y:lerp(R.y,topMid.y,.13)};
+  drawZiweiRoof(a1,b1,{x:topMid.x-ux*ts(16),y:topMid.y-uy*ts(16)},p,1);
+
+  const center2={x:topMid.x+ux*axisLen*.24,y:topMid.y+uy*axisLen*.24};
+  const half2=dist(a1.x,a1.y,b1.x,b1.y)*.33;
+  drawZiweiRoof(
+    {x:center2.x-px*half2,y:center2.y-py*half2},
+    {x:center2.x+px*half2,y:center2.y+py*half2},
+    {x:center2.x-ux*ts(17),y:center2.y-uy*ts(17)},
+    constrain((p-.08)/.92,0,1),.82
+  );
+
+  const center3={x:topMid.x+ux*axisLen*.42,y:topMid.y+uy*axisLen*.42};
+  const half3=half2*.64;
+  drawZiweiRoof(
+    {x:center3.x-px*half3,y:center3.y-py*half3},
+    {x:center3.x+px*half3,y:center3.y+py*half3},
+    {x:center3.x-ux*ts(13),y:center3.y-uy*ts(13)},
+    constrain((p-.18)/.82,0,1),.68
+  );
+
+  [5,6,7,8,9].forEach((idx,k)=>{
+    const q=constrain((p-.22-k*.05)/.65,0,1);
+    if(q<=0)return;
+    const star=pts[idx];
+    const targetT=.32+.04*abs(k-2);
+    const target={x:topMid.x+axis.x*targetT,y:topMid.y+axis.y*targetT};
+    stroke(184,183,153,38*q);
+    strokeWeight(ts(.38));
+    line(star.x,star.y,lerp(star.x,target.x,q),lerp(star.y,target.y,q));
+  });
+
+  const q=constrain((p-.34)/.66,0,1);
+  if(q>0){
+    stroke(219,190,139,55*q);
+    strokeWeight(ts(.48));
+    line(pts[6].x,pts[6].y,pts[8].x,pts[8].y);
+    const mid={x:(pts[6].x+pts[8].x)/2,y:(pts[6].y+pts[8].y)/2};
+    const gateW=ts(18)*q;
+    line(mid.x-px*gateW,mid.y-py*gateW,mid.x-px*gateW-ux*ts(28)*q,mid.y-py*gateW-uy*ts(28)*q);
+    line(mid.x+px*gateW,mid.y+py*gateW,mid.x+px*gateW-ux*ts(28)*q,mid.y+py*gateW-uy*ts(28)*q);
+  }
+}
+
+function drawZiweiRoof(a,b,peak,p,scale=1){
+  if(p<=0)return;
+  noFill();
+  stroke(231,204,154,68*p);
+  strokeWeight(ts(.54));
+  const mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
+  const c1={x:lerp(a.x,peak.x,.62),y:lerp(a.y,peak.y,.62)};
+  const c2={x:lerp(b.x,peak.x,.62),y:lerp(b.y,peak.y,.62)};
+  bezier(a.x,a.y,c1.x,c1.y,c2.x,c2.y,b.x,b.y);
+
+  const dx=b.x-a.x,dy=b.y-a.y,len=max(1,sqrt(dx*dx+dy*dy)),px=-dy/len,py=dx/len;
+  const upSign=((peak.x-mid.x)*px+(peak.y-mid.y)*py)>=0?1:-1;
+  const wing=ts(11)*scale*p;
+  line(a.x,a.y,a.x-px*upSign*wing-dx/len*ts(8),a.y-py*upSign*wing-dy/len*ts(8));
+  line(b.x,b.y,b.x-px*upSign*wing+dx/len*ts(8),b.y-py*upSign*wing+dy/len*ts(8));
+
+  stroke(122,157,165,28*p);
+  strokeWeight(ts(.34));
+  line(a.x,a.y,b.x,b.y);
+}
 
 function drawRings(dt){for(let i=rings.length-1;i>=0;i--){const r=rings[i];r.age+=dt;const a=24*max(0,1-r.age/1.4);noFill();stroke(218,188,130,a);strokeWeight(ts(.38));circle(r.x,r.y,ts(7)+r.age*ts(72));if(r.age>1.4)rings.splice(i,1)}}
 function drawSeal(){if(chosen>=0)return;const s=ts(36),x=W-tx(61)-s,y=ty(46);push();translate(x+s/2,y+s/2);rotate(-.025);translate(-(x+s/2),-(y+s/2));noFill();stroke(174,77,50,180);strokeWeight(ts(1));rect(x,y,s,s,ts(2));stroke(174,77,50,92);rect(x+ts(3),y+ts(3),s-ts(6),s-ts(6));noStroke();fill(198,87,54,200);textFont('Ma Shan Zheng');textAlign(CENTER,TOP);textSize(ts(9));text('觀星',x+s/2,y+ts(5));text('無盡',x+s/2,y+ts(17));pop()}
