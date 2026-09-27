@@ -104,13 +104,95 @@ function draw(){
   const dt=paused?0:Math.min(deltaTime,50)/1000;clock+=dt;
   const mobile=width<760;sceneScale=mobile?Math.max(width/W,height/H)*.74:Math.min(width/W,height/H);ox=(width-W*sceneScale)/2;oy=(height-H*sceneScale)/2;
   const mx=(mouseX-ox)/sceneScale,my=(mouseY-oy)/sceneScale;hoverId=hitGroup(mx,my);cursor(hoverId<0?'default':'pointer');
+
+  const ziweiSelected=chosen>=0&&groups[chosen]?.name==='紫微垣'&&document.body.classList.contains('ziwei-asset-ready');
+  if(ziweiSelected){
+    clear();
+    drawZiweiPosterBreath(dt);
+    return;
+  }
+
   clear();push();translate(ox,oy);scale(sceneScale);drawMilkyDust();drawAmbient();drawOrbitalTrails();
   const ease=1-Math.exp(-dt*6.5);
   groups.forEach(g=>{g.focus=lerp(g.focus,g.i===chosen?1:0,ease*.74);g.light=lerp(g.light,g.i===chosen?1:(g.i===hoverId?.26:0),ease);g.flow+=dt*(.14+g.light*.34)});
   if(chosen>=0)drawFocusVeil(groups[chosen]);
   groups.forEach(g=>{if(g.i!==chosen)drawGroup(g,chosen>=0?.055:1)});
-  if(chosen>=0){const g=groups[chosen];if(g.name==='紫微垣'){push();drawingContext.globalAlpha=.22;drawZiweiArchitecture(g);pop()}else drawConstellationEcho(g);drawGroup(g,1)}
+  if(chosen>=0){const g=groups[chosen];if(g.name==='紫微垣'){push();drawingContext.globalAlpha=.16;drawZiweiArchitecture(g);pop()}else drawConstellationEcho(g);drawGroup(g,1)}
   drawRings(dt);drawSeal();pop();
+}
+
+function drawZiweiPosterBreath(dt){
+  // Normalized from the selected reference artwork. The light follows the
+  // palace-wall/star-node skeleton rather than drawing another palace over it.
+  const srcW=1672,srcH=941;
+  const fit=Math.max(width/srcW,height/srcH);
+  const dx=(width-srcW*fit)/2,dy=(height-srcH*fit)/2;
+  const P=(x,y)=>({x:dx+x*fit,y:dy+y*fit});
+  const wall=[
+    P(333,135),P(236,232),P(181,364),P(238,497),P(439,566),
+    P(722,654),P(1061,762),P(1420,699),P(1450,514),P(1392,362),
+    P(1368,221),P(1223,129)
+  ];
+
+  push();
+  blendMode(SCREEN);
+
+  // Slow living glow on the main star hubs.
+  wall.forEach((p,i)=>{
+    const phase=clock*.72+i*.61;
+    const pulse=.5+.5*sin(phase);
+    noStroke();
+    fill(255,132,56,10+18*pulse);
+    circle(p.x,p.y,(18+14*pulse)*fit);
+    fill(255,190,91,18+34*pulse);
+    circle(p.x,p.y,(7+4*pulse)*fit);
+    fill(255,235,184,105+95*pulse);
+    circle(p.x,p.y,(1.7+1.4*pulse)*fit);
+
+    if(pulse>.78){
+      stroke(255,204,122,35+45*pulse);
+      strokeWeight(max(.35,fit*.55));
+      const ray=(6+5*pulse)*fit;
+      line(p.x-ray,p.y,p.x+ray,p.y);
+      line(p.x,p.y-ray,p.x,p.y+ray);
+    }
+  });
+
+  // Several tiny packets of light travel around the walls continuously.
+  for(let s=0;s<3;s++){
+    const head=(clock*(.085+s*.012)+s*.29)%(wall.length-1);
+    for(let k=0;k<18;k++){
+      let pos=head-k*.04;
+      while(pos<0)pos+=wall.length-1;
+      const idx=floor(pos)%(wall.length-1);
+      const t=pos-floor(pos);
+      const a=wall[idx],b=wall[idx+1];
+      const x=lerp(a.x,b.x,t),y=lerp(a.y,b.y,t);
+      const fade=pow(1-k/18,1.8);
+      noStroke();
+      fill(255,181,80,62*fade);
+      circle(x,y,(4.2*fade+.4)*fit);
+      fill(255,235,190,140*fade);
+      circle(x,y,(1.2*fade+.25)*fit);
+    }
+  }
+
+  // A few breathing celestial points across the palace axis and sky.
+  const inner=[
+    P(1018,196),P(905,392),P(741,665),P(1084,752),
+    P(615,346),P(503,510),P(1186,460)
+  ];
+  inner.forEach((p,i)=>{
+    const pulse=.5+.5*sin(clock*(.55+i*.03)+i*1.37);
+    noStroke();
+    fill(242,220,177,6+16*pulse);
+    circle(p.x,p.y,(10+7*pulse)*fit);
+    fill(255,235,197,65+90*pulse);
+    circle(p.x,p.y,(1.1+1.1*pulse)*fit);
+  });
+
+  blendMode(BLEND);
+  pop();
 }
 
 function drawMilkyDust(){
