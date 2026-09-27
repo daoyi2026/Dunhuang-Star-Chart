@@ -375,61 +375,101 @@ function drawZiweiWallSystem(pts,c,elapsed,wallP){
   }
 }
 
+function ziweiInkLine(x1,y1,x2,y2,r,g,b,a,w=0.42,jitter=0){
+  stroke(r,g,b,a);
+  strokeWeight(ts(w));
+  line(x1,y1,x2,y2);
+  if(jitter>0){
+    stroke(r,g,b,a*.26);
+    strokeWeight(ts(max(.18,w*.48)));
+    line(x1+jitter,y1-jitter*.35,x2+jitter,y2-jitter*.35);
+  }
+}
+
+function ziweiRidgeCurve(a,b,lift,p,alpha=72){
+  const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
+  const dx=b.x-a.x,dy=b.y-a.y,len=max(1,sqrt(dx*dx+dy*dy));
+  const nx=-dy/len,ny=dx/len;
+  const c1={x:lerp(a.x,mx,.64)+nx*lift,y:lerp(a.y,my,.64)+ny*lift};
+  const c2={x:lerp(b.x,mx,.64)+nx*lift,y:lerp(b.y,my,.64)+ny*lift};
+  noFill();
+  stroke(236,204,149,alpha*p);
+  strokeWeight(ts(.48));
+  bezier(a.x,a.y,c1.x,c1.y,c2.x,c2.y,b.x,b.y);
+}
+
 function drawZiweiWallSegment(a,b,c,p,index,alphaScale=1){
   if(p<=0)return;
   const b2={x:lerp(a.x,b.x,p),y:lerp(a.y,b.y,p)};
   const n=inwardNormal(a,b2,c);
-  const width=ts(9.5);
+  const width=ts(10.5);
   const ia={x:a.x+n.nx*width,y:a.y+n.ny*width};
   const ib={x:b2.x+n.nx*width,y:b2.y+n.ny*width};
+  const oa={x:a.x-n.nx*ts(2.7),y:a.y-n.ny*ts(2.7)};
+  const ob={x:b2.x-n.nx*ts(2.7),y:b2.y-n.ny*ts(2.7)};
 
   push();
 
-  // 半透明墙体面：不是一根线，而是由原星线“变厚”为真实宫墙。
+  // 星线变成一段真正有“厚度”的宫垣：墙身、压顶、檐口三层。
   noStroke();
-  fill(64,87,95,13*p*alphaScale);
-  quad(a.x,a.y,b2.x,b2.y,ib.x,ib.y,ia.x,ia.y);
+  fill(48,69,78,11*p*alphaScale);
+  quad(oa.x,oa.y,ob.x,ob.y,ib.x,ib.y,ia.x,ia.y);
 
-  // 墙顶金线 + 内缘青灰线，形成古画界画式体积。
-  stroke(234,194,123,94*p*alphaScale);
-  strokeWeight(ts(.62));
-  line(a.x,a.y,b2.x,b2.y);
+  ziweiInkLine(a.x,a.y,b2.x,b2.y,238,194,119,104*p*alphaScale,.62,.22);
+  ziweiInkLine(ia.x,ia.y,ib.x,ib.y,127,158,160,54*p*alphaScale,.40,.16);
+  ziweiInkLine(oa.x,oa.y,ob.x,ob.y,201,167,112,28*p*alphaScale,.28,0);
 
-  stroke(135,160,159,50*p*alphaScale);
-  strokeWeight(ts(.42));
-  line(ia.x,ia.y,ib.x,ib.y);
+  // 墙顶廊檐：两条近平行脊线 + 细密椽条。
+  const roofOut=ts(3.4);
+  const ra={x:a.x-n.nx*roofOut,y:a.y-n.ny*roofOut};
+  const rb={x:b2.x-n.nx*roofOut,y:b2.y-n.ny*roofOut};
+  const ria={x:ia.x+n.nx*ts(2.0),y:ia.y+n.ny*ts(2.0)};
+  const rib={x:ib.x+n.nx*ts(2.0),y:ib.y+n.ny*ts(2.0)};
+  ziweiInkLine(ra.x,ra.y,rb.x,rb.y,235,201,143,44*p*alphaScale,.33,.12);
+  ziweiInkLine(ria.x,ria.y,rib.x,rib.y,177,172,141,26*p*alphaScale,.26,0);
 
-  stroke(206,175,119,30*p*alphaScale);
-  strokeWeight(ts(.32));
-  line(lerp(a.x,ia.x,.48),lerp(a.y,ia.y,.48),lerp(b2.x,ib.x,.48),lerp(b2.y,ib.y,.48));
-
-  // 城墙上的檐口/垛口细节。
-  const count=max(2,floor(n.len/ts(22)));
+  const count=max(3,floor(n.len/ts(15)));
   for(let k=0;k<=count;k++){
     const t=k/count;
     if(t>p)break;
+
     const ox=lerp(a.x,b.x,t),oy=lerp(a.y,b.y,t);
     const ix=ox+n.nx*width,iy=oy+n.ny*width;
-    stroke(224,197,145,28*p*alphaScale);
-    strokeWeight(ts(.28));
-    line(ox,oy,ix,iy);
 
-    if(k<count){
-      const cx=ox+n.nx*width*.18,cy=oy+n.ny*width*.18;
-      const e=ts(2.6);
-      line(cx-n.dx*e,cy-n.dy*e,cx+n.dx*e,cy+n.dy*e);
+    // 墙身竖向分缝
+    ziweiInkLine(ox,oy,ix,iy,207,185,141,18*p*alphaScale,.22,0);
+
+    // 檐口短椽，让长线不再像单纯几何图形。
+    const cx=ox+n.nx*width*.22,cy=oy+n.ny*width*.22;
+    const e=ts(3.2);
+    ziweiInkLine(cx-n.dx*e,cy-n.dy*e,cx+n.dx*e,cy+n.dy*e,230,201,148,30*p*alphaScale,.26,0);
+
+    // 每隔两格出现一根更明显的墙垛
+    if(k%2===0){
+      const px0=ox+n.nx*width*.08,py0=oy+n.ny*width*.08;
+      ziweiInkLine(
+        px0-n.dx*ts(2.3),py0-n.dy*ts(2.3),
+        px0+n.dx*ts(2.3),py0+n.dy*ts(2.3),
+        229,196,139,38*p*alphaScale,.28,0
+      );
     }
   }
 
-  // 星光沿“实体化之后的城墙”继续流动，保留原星图的呼吸生命感。
-  if(p>.82){
-    const travel=(clock*.075+index*.173)%1;
-    const x=lerp(a.x,b.x,travel),y=lerp(a.y,b.y,travel);
-    noStroke();
-    fill(255,165,70,18+28*sin(clock*1.4+index));
-    circle(x,y,ts(5.5));
-    fill(255,226,174,95);
-    circle(x,y,ts(.9));
+  // 第二层极淡“墨线”，模拟界画复笔。
+  ziweiInkLine(a.x+n.nx*ts(1.25),a.y+n.ny*ts(1.25),b2.x+n.nx*ts(1.25),b2.y+n.ny*ts(1.25),231,210,164,18*p*alphaScale,.20,0);
+
+  // 星光在已经实体化的墙上继续流动。
+  if(p>.78){
+    for(let stream=0;stream<2;stream++){
+      const travel=(clock*(.062+stream*.012)+index*.137+stream*.42)%1;
+      const x=lerp(a.x,b.x,travel),y=lerp(a.y,b.y,travel);
+      const pulse=.5+.5*sin(clock*1.3+index+stream);
+      noStroke();
+      fill(255,146,61,(12+22*pulse)*alphaScale);
+      circle(x,y,ts(5.0+2.0*pulse));
+      fill(255,224,173,90*alphaScale);
+      circle(x,y,ts(.78));
+    }
   }
   pop();
 }
@@ -448,73 +488,87 @@ function drawZiweiNodeTowers(pts,c,elapsed,towerP){
 function drawZiweiTower(star,c,p,scale,index){
   const vx=c.x-star.x,vy=c.y-star.y,len=max(1,sqrt(vx*vx+vy*vy));
   const ux=vx/len,uy=vy/len,px=-uy,py=ux;
-  const w=ts(17)*scale*p;
-  const d=ts(25)*scale*p;
+  const w=ts(17.5)*scale*p;
+  const d=ts(26)*scale*p;
   const inner={x:star.x+ux*d,y:star.y+uy*d};
 
   push();
 
-  // 楼台基座，星点就在外墙节点上。
-  noStroke();
-  fill(49,70,79,20*p);
-  quad(
-    star.x-px*w*.75,star.y-py*w*.75,
-    star.x+px*w*.75,star.y+py*w*.75,
-    inner.x+px*w,inner.y+py*w,
-    inner.x-px*w,inner.y-py*w
-  );
-
-  stroke(220,190,134,62*p);
-  strokeWeight(ts(.45));
-  noFill();
-  line(star.x-px*w*.75,star.y-py*w*.75,inner.x-px*w,inner.y-py*w);
-  line(star.x+px*w*.75,star.y+py*w*.75,inner.x+px*w,inner.y+py*w);
-  line(inner.x-px*w,inner.y-py*w,inner.x+px*w,inner.y+py*w);
-
-  // 第一层屋檐：半透明屋面 + 金色飞檐。
-  const roofC={x:inner.x+ux*ts(5)*scale*p,y:inner.y+uy*ts(5)*scale*p};
-  const rw=w*1.22,rd=ts(8)*scale*p;
-  noStroke();
-  fill(73,92,108,24*p);
-  quad(
-    roofC.x-px*rw-ux*rd,roofC.y-py*rw-uy*rd,
-    roofC.x+px*rw-ux*rd,roofC.y+py*rw-uy*rd,
-    roofC.x+px*rw*.72+ux*rd,roofC.y+py*rw*.72+uy*rd,
-    roofC.x-px*rw*.72+ux*rd,roofC.y-py*rw*.72+uy*rd
-  );
-
-  stroke(235,205,151,84*p);
-  strokeWeight(ts(.48));
-  noFill();
-  line(roofC.x-px*rw-ux*rd,roofC.y-py*rw-uy*rd,roofC.x+px*rw-ux*rd,roofC.y+py*rw-uy*rd);
-  line(roofC.x-px*rw-ux*rd,roofC.y-py*rw-uy*rd,roofC.x-ux*ts(13)*scale,roofC.y-uy*ts(13)*scale);
-  line(roofC.x+px*rw-ux*rd,roofC.y+py*rw-uy*rd,roofC.x-ux*ts(13)*scale,roofC.y-uy*ts(13)*scale);
-
-  if(scale>.9){
-    // 角楼/门楼再长一层。
-    const c2={x:roofC.x+ux*ts(14)*p,y:roofC.y+uy*ts(14)*p};
-    const w2=rw*.72;
-    fill(70,90,106,18*p);
+  // 三层台基
+  for(let tier=0;tier<3;tier++){
+    const tw=w*(1.0-tier*.12),td=d*(.78-tier*.12);
+    const center={x:star.x+ux*(td*.44+tier*ts(2.3)),y:star.y+uy*(td*.44+tier*ts(2.3))};
+    const back={x:center.x-ux*td*.34,y:center.y-uy*td*.34};
+    const front={x:center.x+ux*td*.46,y:center.y+uy*td*.46};
     noStroke();
+    fill(54,72,79,(13-tier*2)*p);
     quad(
-      c2.x-px*w2-ux*ts(5),c2.y-py*w2-uy*ts(5),
-      c2.x+px*w2-ux*ts(5),c2.y+py*w2-uy*ts(5),
-      c2.x+px*w2*.65+ux*ts(4),c2.y+py*w2*.65+uy*ts(4),
-      c2.x-px*w2*.65+ux*ts(4),c2.y-py*w2*.65+uy*ts(4)
+      back.x-px*tw*.72,back.y-py*tw*.72,
+      back.x+px*tw*.72,back.y+py*tw*.72,
+      front.x+px*tw*.84,front.y+py*tw*.84,
+      front.x-px*tw*.84,front.y-py*tw*.84
     );
-    stroke(235,205,151,68*p);
-    strokeWeight(ts(.4));
-    noFill();
-    line(c2.x-px*w2-ux*ts(5),c2.y-py*w2-uy*ts(5),c2.x+px*w2-ux*ts(5),c2.y+py*w2-uy*ts(5));
+    ziweiInkLine(front.x-px*tw*.84,front.y-py*tw*.84,front.x+px*tw*.84,front.y+py*tw*.84,220,190,134,38*p,.34,.1);
   }
 
-  // 原星点不会消失：它成为建筑节点里持续呼吸的“星核”。
-  const pulse=.55+.45*sin(clock*.86+index*.77);
+  // 柱廊
+  const colBack={x:inner.x-ux*ts(7)*scale,y:inner.y-uy*ts(7)*scale};
+  const colFront={x:inner.x+ux*ts(8)*scale,y:inner.y+uy*ts(8)*scale};
+  for(let k=-2;k<=2;k++){
+    const off=k*w*.29;
+    ziweiInkLine(
+      colBack.x+px*off,colBack.y+py*off,
+      colFront.x+px*off,colFront.y+py*off,
+      219,193,145,34*p,.28,0
+    );
+  }
+
+  // 一层主屋面
+  const roofC={x:inner.x+ux*ts(3)*scale,y:inner.y+uy*ts(3)*scale};
+  const rw=w*1.34,rd=ts(9.5)*scale*p;
+  const eL={x:roofC.x-px*rw-ux*rd,y:roofC.y-py*rw-uy*rd};
+  const eR={x:roofC.x+px*rw-ux*rd,y:roofC.y+py*rw-uy*rd};
+  const fL={x:roofC.x-px*rw*.72+ux*rd,y:roofC.y-py*rw*.72+uy*rd};
+  const fR={x:roofC.x+px*rw*.72+ux*rd,y:roofC.y+py*rw*.72+uy*rd};
   noStroke();
-  fill(249,118,55,(18+28*pulse)*p);
+  fill(69,86,103,20*p);
+  quad(eL.x,eL.y,eR.x,eR.y,fR.x,fR.y,fL.x,fL.y);
+  ziweiRidgeCurve(eL,eR,ts(5.2)*scale,p,76);
+  ziweiInkLine(fL.x,fL.y,fR.x,fR.y,224,195,141,54*p,.34,.12);
+
+  // 飞檐与脊兽式短挑线
+  const wing=ts(7.5)*scale*p;
+  ziweiInkLine(eL.x,eL.y,eL.x-px*wing-ux*ts(3),eL.y-py*wing-uy*ts(3),235,204,151,70*p,.42,.08);
+  ziweiInkLine(eR.x,eR.y,eR.x+px*wing-ux*ts(3),eR.y+py*wing-uy*ts(3),235,204,151,70*p,.42,.08);
+
+  if(scale>.9){
+    // 主要节点再长出第二重楼阁
+    const c2={x:roofC.x+ux*ts(16)*p,y:roofC.y+uy*ts(16)*p};
+    const rw2=rw*.72;
+    const le={x:c2.x-px*rw2-ux*ts(5),y:c2.y-py*rw2-uy*ts(5)};
+    const re={x:c2.x+px*rw2-ux*ts(5),y:c2.y+py*rw2-uy*ts(5)};
+    const lf={x:c2.x-px*rw2*.68+ux*ts(4),y:c2.y-py*rw2*.68+uy*ts(4)};
+    const rf={x:c2.x+px*rw2*.68+ux*ts(4),y:c2.y+py*rw2*.68+uy*ts(4)};
+    noStroke();
+    fill(76,88,106,16*p);
+    quad(le.x,le.y,re.x,re.y,rf.x,rf.y,lf.x,lf.y);
+    ziweiRidgeCurve(le,re,ts(4.0)*scale,p,64);
+
+    // 二层柱间横梁
+    ziweiInkLine(lf.x,lf.y,rf.x,rf.y,211,185,135,34*p,.28,0);
+    for(let k=-1;k<=1;k++){
+      const off=k*rw2*.42;
+      ziweiInkLine(c2.x+px*off-ux*ts(3),c2.y+py*off-uy*ts(3),c2.x+px*off+ux*ts(5),c2.y+py*off+uy*ts(5),214,187,140,25*p,.22,0);
+    }
+  }
+
+  // 星核始终保留并缓慢呼吸
+  const pulse=.55+.45*sin(clock*.78+index*.73);
+  noStroke();
+  fill(249,118,55,(18+32*pulse)*p);
   circle(star.x,star.y,ts(12+8*pulse)*scale);
-  fill(255,213,156,180*p);
-  circle(star.x,star.y,ts(1.6+1.2*pulse)*scale);
+  fill(255,213,156,190*p);
+  circle(star.x,star.y,ts(1.55+1.35*pulse)*scale);
 
   pop();
 }
@@ -608,71 +662,95 @@ function drawZiweiCauseway(a,b,ux,uy,px,py,p){
 
 function drawZiweiHall(center,ux,uy,px,py,w,d,p,scale=1){
   if(p<=0)return;
-  w*=p;d*=p;
-
+  const Wd=w*p,Dp=d*p;
   push();
 
-  // 台基
-  const back={x:center.x-ux*d*.45,y:center.y-uy*d*.45};
-  const front={x:center.x+ux*d*.55,y:center.y+uy*d*.55};
-  noStroke();
-  fill(58,76,87,20*p);
-  quad(
-    back.x-px*w*.52,back.y-py*w*.52,
-    back.x+px*w*.52,back.y+py*w*.52,
-    front.x+px*w*.58,front.y+py*w*.58,
-    front.x-px*w*.58,front.y-py*w*.58
-  );
-
-  stroke(218,191,141,46*p);
-  strokeWeight(ts(.42));
-  noFill();
-  line(front.x-px*w*.58,front.y-py*w*.58,front.x+px*w*.58,front.y+py*w*.58);
-  line(back.x-px*w*.52,back.y-py*w*.52,front.x-px*w*.58,front.y-py*w*.58);
-  line(back.x+px*w*.52,back.y+py*w*.52,front.x+px*w*.58,front.y+py*w*.58);
-
-  // 柱列
-  const cols=6;
-  for(let i=0;i<=cols;i++){
-    const t=i/cols-.5;
-    const cx=center.x+px*w*t,cy=center.y+py*w*t;
-    stroke(218,192,147,30*p);
-    line(cx-ux*d*.2,cy-uy*d*.2,cx+ux*d*.3,cy+uy*d*.3);
+  // 多层须弥座式台基
+  for(let tier=0;tier<3;tier++){
+    const factor=1-tier*.08;
+    const back={x:center.x-ux*Dp*(.42-tier*.03),y:center.y-uy*Dp*(.42-tier*.03)};
+    const front={x:center.x+ux*Dp*(.56-tier*.03),y:center.y+uy*Dp*(.56-tier*.03)};
+    const hw=Wd*.56*factor;
+    noStroke();
+    fill(54,72,83,(15-tier*2)*p);
+    quad(
+      back.x-px*hw,back.y-py*hw,
+      back.x+px*hw,back.y+py*hw,
+      front.x+px*hw*1.08,front.y+py*hw*1.08,
+      front.x-px*hw*1.08,front.y-py*hw*1.08
+    );
+    ziweiInkLine(front.x-px*hw*1.08,front.y-py*hw*1.08,front.x+px*hw*1.08,front.y+py*hw*1.08,220,191,139,32*p,.31,.08);
   }
 
-  // 双坡屋面：带半透明屋面，不再是“几根线”。
-  const ridge={x:center.x-ux*d*.38,y:center.y-uy*d*.38};
-  const eaveL={x:center.x-px*w*.66+ux*d*.05,y:center.y-py*w*.66+uy*d*.05};
-  const eaveR={x:center.x+px*w*.66+ux*d*.05,y:center.y+py*w*.66+uy*d*.05};
-  const frontL={x:center.x-px*w*.55+ux*d*.34,y:center.y-py*w*.55+uy*d*.34};
-  const frontR={x:center.x+px*w*.55+ux*d*.34,y:center.y+py*w*.55+uy*d*.34};
+  // 正面柱廊和额枋
+  const colBack={x:center.x-ux*Dp*.18,y:center.y-uy*Dp*.18};
+  const colFront={x:center.x+ux*Dp*.31,y:center.y+uy*Dp*.31};
+  const cols=8;
+  for(let i=0;i<=cols;i++){
+    const t=i/cols-.5;
+    const off=t*Wd*.95;
+    ziweiInkLine(
+      colBack.x+px*off,colBack.y+py*off,
+      colFront.x+px*off,colFront.y+py*off,
+      220,194,146,32*p,.27,0
+    );
+  }
+  ziweiInkLine(
+    colBack.x-px*Wd*.5,colBack.y-py*Wd*.5,
+    colBack.x+px*Wd*.5,colBack.y+py*Wd*.5,
+    223,196,146,32*p,.30,.08
+  );
+
+  // 主屋顶：前后两片半透明屋面 + 金色屋脊
+  const ridge={x:center.x-ux*Dp*.38,y:center.y-uy*Dp*.38};
+  const rearL={x:center.x-px*Wd*.68-ux*Dp*.02,y:center.y-py*Wd*.68-uy*Dp*.02};
+  const rearR={x:center.x+px*Wd*.68-ux*Dp*.02,y:center.y+py*Wd*.68-uy*Dp*.02};
+  const frontL={x:center.x-px*Wd*.58+ux*Dp*.33,y:center.y-py*Wd*.58+uy*Dp*.33};
+  const frontR={x:center.x+px*Wd*.58+ux*Dp*.33,y:center.y+py*Wd*.58+uy*Dp*.33};
 
   noStroke();
-  fill(67,82,104,24*p);
-  triangle(ridge.x,ridge.y,eaveL.x,eaveL.y,eaveR.x,eaveR.y);
-  fill(90,80,100,13*p);
-  quad(eaveL.x,eaveL.y,eaveR.x,eaveR.y,frontR.x,frontR.y,frontL.x,frontL.y);
+  fill(65,82,104,22*p);
+  triangle(ridge.x,ridge.y,rearL.x,rearL.y,rearR.x,rearR.y);
+  fill(86,78,103,13*p);
+  quad(rearL.x,rearL.y,rearR.x,rearR.y,frontR.x,frontR.y,frontL.x,frontL.y);
 
-  stroke(238,205,148,82*p);
-  strokeWeight(ts(.52));
-  noFill();
-  line(eaveL.x,eaveL.y,ridge.x,ridge.y);
-  line(ridge.x,ridge.y,eaveR.x,eaveR.y);
-  line(eaveL.x,eaveL.y,eaveR.x,eaveR.y);
-  line(frontL.x,frontL.y,frontR.x,frontR.y);
+  ziweiRidgeCurve(rearL,rearR,ts(7.5)*scale,p,92);
+  ziweiInkLine(frontL.x,frontL.y,frontR.x,frontR.y,235,202,145,68*p,.46,.1);
+  ziweiInkLine(rearL.x,rearL.y,rearR.x,rearR.y,191,175,142,31*p,.28,0);
 
-  // 飞檐稍稍外挑
-  const wing=ts(8)*scale*p;
-  line(eaveL.x,eaveL.y,eaveL.x-px*wing-ux*ts(3),eaveL.y-py*wing-uy*ts(3));
-  line(eaveR.x,eaveR.y,eaveR.x+px*wing-ux*ts(3),eaveR.y+py*wing-uy*ts(3));
+  // 瓦当/椽条：从脊线向前檐分出细线
+  for(let i=0;i<=12;i++){
+    const t=i/12;
+    const sx=lerp(rearL.x,rearR.x,t),sy=lerp(rearL.y,rearR.y,t);
+    const ex=lerp(frontL.x,frontR.x,t),ey=lerp(frontL.y,frontR.y,t);
+    ziweiInkLine(sx,sy,ex,ey,182,183,157,14*p,.18,0);
+  }
 
-  // 主殿脊心有一颗非常轻的星核，表明宫殿仍是星象取象。
-  const pulse=.55+.45*sin(clock*.68+center.x*.01);
+  // 飞檐
+  const wing=ts(9)*scale*p;
+  ziweiInkLine(rearL.x,rearL.y,rearL.x-px*wing-ux*ts(3),rearL.y-py*wing-uy*ts(3),238,207,153,64*p,.40,.08);
+  ziweiInkLine(rearR.x,rearR.y,rearR.x+px*wing-ux*ts(3),rearR.y+py*wing-uy*ts(3),238,207,153,64*p,.40,.08);
+
+  // 主殿台阶/御路
+  const stairTop={x:center.x+ux*Dp*.43,y:center.y+uy*Dp*.43};
+  const stairBottom={x:center.x+ux*Dp*.88,y:center.y+uy*Dp*.88};
+  const stairW=Wd*.17;
+  ziweiInkLine(stairTop.x-px*stairW,stairTop.y-py*stairW,stairBottom.x-px*stairW*.82,stairBottom.y-py*stairW*.82,219,193,145,26*p,.25,0);
+  ziweiInkLine(stairTop.x+px*stairW,stairTop.y+py*stairW,stairBottom.x+px*stairW*.82,stairBottom.y+py*stairW*.82,219,193,145,26*p,.25,0);
+  for(let i=0;i<5;i++){
+    const t=i/4;
+    const cx=lerp(stairTop.x,stairBottom.x,t),cy=lerp(stairTop.y,stairBottom.y,t);
+    const hw=lerp(stairW,stairW*.82,t);
+    ziweiInkLine(cx-px*hw,cy-py*hw,cx+px*hw,cy+py*hw,205,184,143,16*p,.20,0);
+  }
+
+  // 宫殿仍由星象供能
+  const pulse=.55+.45*sin(clock*.66+center.x*.01);
   noStroke();
-  fill(255,173,79,(18+24*pulse)*p);
+  fill(255,169,76,(16+26*pulse)*p);
   circle(ridge.x,ridge.y,ts(8+5*pulse)*scale);
-  fill(255,232,186,150*p);
-  circle(ridge.x,ridge.y,ts(1.1+1.0*pulse)*scale);
+  fill(255,233,189,150*p);
+  circle(ridge.x,ridge.y,ts(1.05+1.0*pulse)*scale);
 
   pop();
 }
@@ -681,20 +759,44 @@ function drawZiweiCourt(center,ux,uy,px,py,p){
   if(p<=0)return;
   const w=ts(85)*p,d=ts(47)*p;
   push();
-  noFill();
-  stroke(158,165,145,26*p);
-  strokeWeight(ts(.35));
+
   const a={x:center.x-px*w-ux*d,y:center.y-py*w-uy*d};
   const b={x:center.x+px*w-ux*d,y:center.y+py*w-uy*d};
-  const c={x:center.x+px*w+ux*d,y:center.y+py*w+uy*d};
+  const cc={x:center.x+px*w+ux*d,y:center.y+py*w+uy*d};
   const d2={x:center.x-px*w+ux*d,y:center.y-py*w+uy*d};
-  beginShape();vertex(a.x,a.y);vertex(b.x,b.y);vertex(c.x,c.y);vertex(d2.x,d2.y);endShape(CLOSE);
 
-  // 庭院中心的星盘
-  stroke(213,189,139,28*p);
-  ellipse(center.x,center.y,ts(29)*p,ts(15)*p);
-  line(center.x-px*ts(13)*p,center.y-py*ts(13)*p,center.x+px*ts(13)*p,center.y+py*ts(13)*p);
-  line(center.x-ux*ts(8)*p,center.y-uy*ts(8)*p,center.x+ux*ts(8)*p,center.y+uy*ts(8)*p);
+  noStroke();
+  fill(44,63,73,8*p);
+  quad(a.x,a.y,b.x,b.y,cc.x,cc.y,d2.x,d2.y);
+
+  noFill();
+  ziweiInkLine(a.x,a.y,b.x,b.y,158,165,145,27*p,.31,.08);
+  ziweiInkLine(b.x,b.y,cc.x,cc.y,158,165,145,22*p,.27,0);
+  ziweiInkLine(cc.x,cc.y,d2.x,d2.y,158,165,145,22*p,.27,0);
+  ziweiInkLine(d2.x,d2.y,a.x,a.y,158,165,145,22*p,.27,0);
+
+  // 铺地方格，像古代界画而不是现代网格
+  for(let i=-3;i<=3;i++){
+    const off=i*w/3;
+    const p1={x:center.x+px*off-ux*d*.82,y:center.y+py*off-uy*d*.82};
+    const p2={x:center.x+px*off+ux*d*.82,y:center.y+py*off+uy*d*.82};
+    ziweiInkLine(p1.x,p1.y,p2.x,p2.y,142,154,139,9*p,.16,0);
+  }
+  for(let i=-2;i<=2;i++){
+    const off=i*d/2;
+    const p1={x:center.x+ux*off-px*w*.82,y:center.y+uy*off-py*w*.82};
+    const p2={x:center.x+ux*off+px*w*.82,y:center.y+uy*off+py*w*.82};
+    ziweiInkLine(p1.x,p1.y,p2.x,p2.y,142,154,139,8*p,.16,0);
+  }
+
+  // 中央星盘
+  stroke(213,189,139,32*p);
+  strokeWeight(ts(.32));
+  ellipse(center.x,center.y,ts(31)*p,ts(16)*p);
+  ellipse(center.x,center.y,ts(17)*p,ts(9)*p);
+  line(center.x-px*ts(14)*p,center.y-py*ts(14)*p,center.x+px*ts(14)*p,center.y+py*ts(14)*p);
+  line(center.x-ux*ts(9)*p,center.y-uy*ts(9)*p,center.x+ux*ts(9)*p,center.y+uy*ts(9)*p);
+
   pop();
 }
 
@@ -715,12 +817,12 @@ function drawZiweiBreathingMist(pts,c,p,elapsed){
   blendMode(SCREEN);
   noFill();
 
-  for(let i=0;i<4;i++){
-    const phase=clock*.16+i*.8;
-    const r=ts(74+i*31)*(1+.025*sin(phase));
-    stroke(91,124,138,(6+i*2)*p);
-    strokeWeight(ts(.35));
-    arc(c.x,c.y+ts(12),r*2,r*.72,-2.55+.08*i,-.2+.06*i);
+  for(let i=0;i<3;i++){
+    const phase=clock*.13+i*.9;
+    const r=ts(88+i*38)*(1+.018*sin(phase));
+    stroke(91,124,138,(4+i*1.7)*p);
+    strokeWeight(ts(.28));
+    arc(c.x,c.y+ts(12),r*2,r*.66,-2.48+.09*i,-.34+.05*i);
   }
 
   // 几个不抢眼的“气”沿建筑空间游走。
