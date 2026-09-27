@@ -6,7 +6,7 @@
 *{box-sizing:border-box}
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#0d0f0f;color:var(--ink)}
 body{font-family:var(--font-calligraphy);font-synthesis:none}
-#app{position:fixed;inset:0;background:#080d12 url("./assets/celestial-paper.svg") center/cover no-repeat}
+#app{position:fixed;inset:0;background:#080d12 url("./assets/celestial-paper.svg?v=20260927-v3b") center/cover no-repeat}
 #app::after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 52% 43%,transparent 0 43%,rgba(0,0,0,.05) 68%,rgba(0,0,0,.25) 100%);}
 canvas{display:block;width:100%!important;height:100%!important;position:relative;z-index:1}
 .ui-shell{position:fixed;inset:0;z-index:10;pointer-events:none;color:var(--ink)}
