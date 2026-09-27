@@ -10,6 +10,19 @@
   const close = document.getElementById('detailClose');
   const wayfinding = document.getElementById('wayfinding');
   const shell = document.querySelector('.ui-shell');
+  const ziweiVision = document.getElementById('ziweiVision');
+  const ziweiVisionImage = document.getElementById('ziweiVisionImage');
+
+  const palaceParts = Array.from({length:10},(_,i)=>
+    './assets/ziwei-palace/part'+String(i+1).padStart(2,'0')+'.txt?v=20260927-v3c'
+  );
+  Promise.all(palaceParts.map(url=>fetch(url,{cache:'force-cache'}).then(r=>{
+    if(!r.ok) throw new Error('palace asset '+r.status);
+    return r.text();
+  }))).then(parts=>{
+    ziweiVisionImage.src='data:image/jpeg;base64,'+parts.join('').replace(/\s+/g,'');
+    ziweiVisionImage.addEventListener('load',()=>document.body.classList.add('ziwei-asset-ready'),{once:true});
+  }).catch(()=>document.body.classList.remove('ziwei-asset-ready'));
   const labels = {'紫微':'帝居之象','北斗':'帝车之象','天棓':'宿卫之象','华盖':'仪盖之象','天厨':'膳府之象','传舍':'驿馆之象','天柱':'支天之象','文昌':'文府之象','三师':'辅弼之象','太尊':'尊位之象','天牢':'禁垣之象','内阶':'阶陛之象','天床':'寝居之象','八谷':'禾黍之象','天理':'法度之象','六甲':'历序之象','勾陈':'宿卫之象','北极':'天枢之象','天皇':'帝座之象','五帝':'五方之象','尚书':'诏令之象','女史':'内记之象','柱史':'史册之象','御女':'内廷之象','天枪':'兵卫之象','玄戈':'兵戈之象','三公':'辅政之象','相':'宰辅之象','紫微垣':'宫城之象'};
   const romans = {'紫微垣':'PURPLE FORBIDDEN ENCLOSURE','北斗':'NORTHERN DIPPER','文昌':'WENCHANG','华盖':'IMPERIAL CANOPY','紫微':'PURPLE PALACE'};
   function markInterfacePointer(event){if(!event.target.closest('.ui-shell')) return;window.__starChartUiPointer=true;window.setTimeout(()=>{window.__starChartUiPointer=false;},420)}
@@ -19,6 +32,9 @@
   function select(group){
     const on=Boolean(group);
     panel.classList.toggle('is-visible',on);panel.setAttribute('aria-hidden',String(!on));wayfinding.classList.toggle('is-dismissed',on);document.body.classList.toggle('has-detail',on);
+    const isZiwei=on&&group.name==='紫微垣';
+    document.body.classList.toggle('is-ziwei',isZiwei);
+    ziweiVision.setAttribute('aria-hidden',String(!isZiwei));
     if(!on) return;
     title.textContent=group.name;roman.textContent=romans[group.name] || 'DUNHUANG STAR OFFICER';glyph.textContent=labels[group.name] || '星象之意';
     lead.textContent=group.note || '古人以星官组织夜空，也把人间秩序、器物与想象投射到天上。';
