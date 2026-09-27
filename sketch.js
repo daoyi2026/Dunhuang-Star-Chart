@@ -5,6 +5,8 @@ let diamondStars = [];
 let dust = [];
 let meteors = [];
 let rings = [];
+let mistStars = [];
+let starTrails = [];
 
 let clock = 0;
 let paused = false;
@@ -318,6 +320,33 @@ function makePaper() {
     paper.ellipse(x, y, radius, radius * random(0.35, 1.4));
   }
 
+  // Dense short fibres and mineral flecks keep the surface visibly papery
+  // even after the cool celestial washes are composited above it.
+  for (let i = 0; i < 2900; i += 1) {
+    const x = random(W);
+    const y = random(H);
+    const len = random(ts(0.8), ts(7.5));
+    const angle = random() < 0.8 ? random(-0.22, 0.22) : HALF_PI + random(-0.22, 0.22);
+    const warm = random() < 0.58;
+    paper.stroke(
+      warm ? random(160, 205) : random(58, 90),
+      warm ? random(126, 166) : random(48, 70),
+      warm ? random(78, 112) : random(38, 54),
+      random(2, 7)
+    );
+    paper.strokeWeight(random(ts(0.12), ts(0.42)));
+    paper.line(x, y, x + cos(angle) * len, y + sin(angle) * len);
+  }
+
+  for (let i = 0; i < 520; i += 1) {
+    const x = random(W);
+    const y = random(H);
+    paper.noStroke();
+    if (random() < 0.55) paper.fill(201, 169, 116, random(1.5, 5));
+    else paper.fill(2, 3, 4, random(2, 7));
+    paper.circle(x, y, random(ts(0.25), ts(1.4)));
+  }
+
   const context = paper.drawingContext;
   const warmGlow = context.createRadialGradient(
     W * 0.5, H * 0.47, ts(30),
@@ -374,6 +403,41 @@ function makeSky() {
     dust.push({
       x: random(W), y: random(H), s: random(ts(0.12), ts(0.5)),
       a: random(2, 8), p: random(TWO_PI), v: random(0.05, 0.15)
+    });
+  }
+
+  mistStars = [];
+  for (let i = 0; i < 720; i += 1) {
+    const t = random(-0.08, 1.08);
+    const spread = randomGaussian() * ts(58 + 58 * sin(t * PI));
+    const tangent = randomGaussian() * ts(34);
+    const baseX = lerp(W * 0.05, W * 0.82, t);
+    const baseY = lerp(H * 1.04, -H * 0.08, t);
+    const dx = 0.78;
+    const dy = -0.63;
+    mistStars.push({
+      x: baseX + (-dy) * spread + dx * tangent,
+      y: baseY + dx * spread + dy * tangent,
+      s: random(ts(0.16), ts(1.22)),
+      a: random(2.5, 15),
+      p: random(TWO_PI),
+      v: random(0.05, 0.2),
+      tone: random()
+    });
+  }
+
+  starTrails = [];
+  for (let i = 0; i < 10; i += 1) {
+    starTrails.push({
+      cx: W * 0.53 + random(-ts(35), ts(35)),
+      cy: H * 0.49 + random(-ts(24), ts(24)),
+      rx: ts(115 + i * 42 + random(-12, 14)),
+      ry: ts(72 + i * 26 + random(-10, 12)),
+      start: random(-PI * 0.95, PI * 0.1),
+      span: random(0.42, 1.08),
+      phase: random(TWO_PI),
+      speed: random(0.012, 0.036),
+      tilt: random(-0.14, 0.12)
     });
   }
 }
@@ -449,6 +513,7 @@ function makeStars() {
       c: [tx(center[0]), ty(center[1])],
       anchor: [tx(center[0]), ty(center[1])],
       zoom: 1,
+      focus: 0,
       light: 0,
       flow: 0
     });
@@ -509,6 +574,9 @@ function draw() {
   textFont('Ma Shan Zheng');
   textAlign(LEFT, BASELINE);
 
+  drawCelestialWash();
+  drawMilkyWay();
+  drawStarTrails();
   drawDust();
   drawFarStars();
   drawDiamonds();
@@ -516,19 +584,412 @@ function draw() {
 
   const ease = 1 - Math.exp(-dt * 7);
   groups.forEach((group) => {
-    group.zoom = lerp(group.zoom, group.i === chosen ? (group.i === 28 ? 1.07 : 1.35) : 1, ease);
-    group.light = lerp(group.light, group.i === chosen ? 1 : (group.i === hoverId ? 0.2 : 0), ease);
+    const selected = group.i === chosen;
+    group.focus = lerp(group.focus || 0, selected ? 1 : 0, ease * 0.72);
+    group.zoom = lerp(group.zoom, 1, ease);
+    group.light = lerp(group.light, selected ? 1 : (group.i === hoverId ? 0.2 : 0), ease);
     group.flow += dt * (0.27 + group.light * 0.2);
   });
 
   groups.forEach((group) => {
-    if (group.i !== chosen) drawGroup(group);
+    if (group.i === chosen) return;
+    push();
+    drawingContext.globalAlpha = chosen >= 0 ? 0.18 : 1;
+    drawGroup(group);
+    pop();
   });
-  if (chosen >= 0) drawGroup(groups[chosen]);
+
+  if (chosen >= 0) {
+    const selected = groups[chosen];
+    drawSelectionAtmosphere(selected);
+    drawMotif(selected);
+    drawGroup(selected);
+  }
 
   drawRings(dt);
   drawTitles();
   pop();
+}
+
+function drawCelestialWash() {
+  const ctx = drawingContext;
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+
+  const indigo = ctx.createRadialGradient(W * 0.25, H * 0.18, ts(20), W * 0.25, H * 0.18, W * 0.5);
+  indigo.addColorStop(0, 'rgba(37, 74, 91, .16)');
+  indigo.addColorStop(.44, 'rgba(31, 61, 78, .08)');
+  indigo.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = indigo;
+  ctx.fillRect(0, 0, W, H);
+
+  const violet = ctx.createRadialGradient(W * 0.76, H * 0.18, ts(15), W * 0.76, H * 0.18, W * 0.42);
+  violet.addColorStop(0, 'rgba(78, 68, 100, .12)');
+  violet.addColorStop(.55, 'rgba(55, 50, 76, .05)');
+  violet.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = violet;
+  ctx.fillRect(0, 0, W, H);
+
+  const lower = ctx.createLinearGradient(0, H, W, 0);
+  lower.addColorStop(0, 'rgba(84, 55, 45, .09)');
+  lower.addColorStop(.45, 'rgba(33, 55, 63, .06)');
+  lower.addColorStop(1, 'rgba(22, 25, 34, 0)');
+  ctx.fillStyle = lower;
+  ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+}
+
+function drawMilkyWay() {
+  push();
+  blendMode(SCREEN);
+
+  noFill();
+  stroke(70, 103, 115, 5.5);
+  strokeWeight(ts(88));
+  bezier(W * .03, H * 1.06, W * .24, H * .72, W * .47, H * .34, W * .8, -H * .08);
+  stroke(101, 87, 111, 3.7);
+  strokeWeight(ts(48));
+  bezier(W * .06, H * 1.04, W * .28, H * .7, W * .52, H * .3, W * .82, -H * .1);
+
+  noStroke();
+  mistStars.forEach((star) => {
+    const pulse = .72 + .28 * sin(clock * star.v + star.p);
+    let color;
+    if (star.tone < .36) color = [111, 151, 157];
+    else if (star.tone < .7) color = [125, 112, 145];
+    else color = [214, 179, 125];
+
+    fill(color[0], color[1], color[2], star.a * pulse);
+    circle(star.x, star.y, star.s * (0.85 + pulse * .25));
+
+    if (star.s > ts(.82) && star.tone > .62) {
+      fill(238, 214, 167, star.a * .18 * pulse);
+      circle(star.x, star.y, star.s * 5.5);
+    }
+  });
+
+  blendMode(BLEND);
+  pop();
+}
+
+function drawStarTrails() {
+  push();
+  noFill();
+  const ctx = drawingContext;
+  ctx.save();
+  ctx.setLineDash([ts(1.2), ts(5.8)]);
+
+  starTrails.forEach((trail, index) => {
+    push();
+    translate(trail.cx, trail.cy);
+    rotate(trail.tilt);
+
+    stroke(index % 3 === 0 ? 116 : 187, index % 3 === 0 ? 143 : 164, index % 3 === 0 ? 149 : 117, 14 + index * .7);
+    strokeWeight(ts(.38));
+    arc(0, 0, trail.rx * 2, trail.ry * 2, trail.start, trail.start + trail.span);
+
+    const p = (clock * trail.speed + trail.phase) % 1;
+    const angle = trail.start + trail.span * p;
+    const x = cos(angle) * trail.rx;
+    const y = sin(angle) * trail.ry;
+    noStroke();
+    fill(235, 213, 165, 24);
+    circle(x, y, ts(5.5));
+    fill(245, 226, 186, 82);
+    circle(x, y, ts(1.05));
+    pop();
+  });
+
+  ctx.restore();
+  pop();
+}
+
+function focusEase(group) {
+  const t = constrain(group.focus || 0, 0, 1);
+  return 1 - pow(1 - t, 3);
+}
+
+function focusTransform(group) {
+  const f = focusEase(group);
+  const mobile = width < 760;
+  const targetX = W * .52;
+  const targetY = H * (mobile ? .34 : .42);
+  const targetScale = group.i === 28 ? (mobile ? .98 : 1.16) : (mobile ? 1.72 : 2.05);
+  return {
+    f,
+    scale: lerp(1, targetScale, f),
+    dx: lerp(0, targetX - group.anchor[0], f),
+    dy: lerp(0, targetY - group.anchor[1], f)
+  };
+}
+
+function applyGroupTransform(group) {
+  const t = focusTransform(group);
+  translate(t.dx, t.dy);
+  translate(group.anchor[0], group.anchor[1]);
+  scale(t.scale);
+  translate(-group.anchor[0], -group.anchor[1]);
+}
+
+function transformedPoint(group, point) {
+  const t = focusTransform(group);
+  return {
+    x: group.anchor[0] + (point.x - group.anchor[0]) * t.scale + t.dx,
+    y: group.anchor[1] + (point.y - group.anchor[1]) * t.scale + t.dy
+  };
+}
+
+function drawSelectionAtmosphere(group) {
+  const f = focusEase(group);
+  if (f < .01) return;
+
+  const t = focusTransform(group);
+  const cx = group.anchor[0] + t.dx;
+  const cy = group.anchor[1] + t.dy;
+
+  push();
+  noStroke();
+  for (let i = 5; i >= 0; i -= 1) {
+    const r = ts(160 + i * 48) * (group.i === 28 ? 1.28 : 1);
+    fill(40, 61, 69, (3.3 + (5 - i) * 1.6) * f);
+    ellipse(cx, cy, r * 1.55, r);
+  }
+  pop();
+}
+
+function motifType(name) {
+  if (['紫微','紫微垣','勾陈','天皇','五帝'].includes(name)) return 'palace';
+  if (name === '北斗') return 'chariot';
+  if (name === '华盖') return 'canopy';
+  if (name === '天厨') return 'vessel';
+  if (['传舍','天床'].includes(name)) return 'pavilion';
+  if (name === '天柱') return 'columns';
+  if (['文昌','尚书','女史','柱史'].includes(name)) return 'scroll';
+  if (name === '内阶') return 'stairs';
+  if (name === '八谷') return 'grain';
+  if (['天枪','玄戈','六甲'].includes(name)) return 'weapon';
+  if (name === '天牢') return 'enclosure';
+  return 'orbit';
+}
+
+function drawMotif(group) {
+  const f = focusEase(group);
+  if (f < .035) return;
+
+  push();
+  applyGroupTransform(group);
+  translate(group.anchor[0], group.anchor[1]);
+
+  const type = motifType(group.name);
+  const s = group.i === 28 ? ts(285) : ts(135);
+  const alpha = 72 * f;
+
+  if (type === 'palace') drawPalaceMotif(s, alpha);
+  else if (type === 'chariot') drawChariotMotif(s, alpha);
+  else if (type === 'canopy') drawCanopyMotif(s, alpha);
+  else if (type === 'vessel') drawVesselMotif(s, alpha);
+  else if (type === 'pavilion') drawPavilionMotif(s, alpha);
+  else if (type === 'columns') drawColumnMotif(s, alpha);
+  else if (type === 'scroll') drawScrollMotif(s, alpha);
+  else if (type === 'stairs') drawStairMotif(s, alpha);
+  else if (type === 'grain') drawGrainMotif(s, alpha);
+  else if (type === 'weapon') drawWeaponMotif(s, alpha);
+  else if (type === 'enclosure') drawEnclosureMotif(s, alpha);
+  else drawOrbitMotif(s, alpha);
+
+  pop();
+}
+
+function motifStroke(alpha, warm = true) {
+  noFill();
+  stroke(warm ? 226 : 126, warm ? 203 : 151, warm ? 153 : 160, alpha);
+  strokeWeight(ts(.58));
+}
+
+function drawPalaceMotif(s, alpha) {
+  push();
+  translate(0, ts(5));
+  for (let pass = 0; pass < 2; pass += 1) {
+    const a = alpha * (pass === 0 ? .95 : .36);
+    const o = pass * ts(1.8);
+    motifStroke(a, pass === 0);
+
+    const w = s * .96;
+    const h = s * .53;
+    line(-w * .46 + o, h * .08, -w * .46 + o, h * .47);
+    line(w * .46 + o, h * .08, w * .46 + o, h * .47);
+    line(-w * .46 + o, h * .47, w * .46 + o, h * .47);
+
+    beginShape();
+    vertex(-w * .54 + o, h * .06);
+    vertex(-w * .35 + o, -h * .06);
+    vertex(-w * .18 + o, -h * .09);
+    vertex(0 + o, -h * .23);
+    vertex(w * .18 + o, -h * .09);
+    vertex(w * .35 + o, -h * .06);
+    vertex(w * .54 + o, h * .06);
+    endShape();
+
+    beginShape();
+    vertex(-w * .31 + o, h * .11);
+    vertex(-w * .2 + o, h * .02);
+    vertex(0 + o, -h * .08);
+    vertex(w * .2 + o, h * .02);
+    vertex(w * .31 + o, h * .11);
+    endShape();
+
+    for (let x = -2; x <= 2; x += 1) {
+      const px = x * w * .13 + o;
+      line(px, h * .11, px, h * .47);
+    }
+
+    rectMode(CENTER);
+    rect(o, h * .31, w * .18, h * .32);
+    line(-w * .43 + o, h * .25, -w * .25 + o, h * .25);
+    line(w * .25 + o, h * .25, w * .43 + o, h * .25);
+
+    for (let i = -3; i <= 3; i += 1) {
+      const px = i * w * .125 + o;
+      line(px - w * .035, h * .5, px, h * .43);
+      line(px, h * .43, px + w * .035, h * .5);
+    }
+  }
+  pop();
+}
+
+function drawChariotMotif(s, alpha) {
+  motifStroke(alpha);
+  const y = s * .18;
+  ellipse(-s * .25, y, s * .27, s * .27);
+  ellipse(s * .2, y, s * .27, s * .27);
+  line(-s * .25, y, s * .2, y);
+  line(-s * .14, -s * .18, s * .18, -s * .18);
+  line(-s * .14, -s * .18, -s * .22, y - s * .09);
+  line(s * .18, -s * .18, s * .25, y - s * .08);
+  line(s * .1, -s * .18, s * .46, -s * .4);
+  line(s * .46, -s * .4, s * .57, -s * .38);
+  for (let i = 0; i < 7; i += 1) {
+    const a = TWO_PI * i / 7;
+    line(-s * .25, y, -s * .25 + cos(a) * s * .12, y + sin(a) * s * .12);
+    line(s * .2, y, s * .2 + cos(a) * s * .12, y + sin(a) * s * .12);
+  }
+}
+
+function drawCanopyMotif(s, alpha) {
+  motifStroke(alpha);
+  arc(0, -s * .08, s, s * .58, PI, TWO_PI);
+  line(-s * .5, -s * .08, 0, s * .03);
+  line(s * .5, -s * .08, 0, s * .03);
+  line(0, s * .03, 0, s * .52);
+  for (let i = -4; i <= 4; i += 1) {
+    const x = i * s * .11;
+    line(x, -s * .07, x * .72, s * .08);
+  }
+}
+
+function drawVesselMotif(s, alpha) {
+  motifStroke(alpha);
+  arc(0, s * .03, s * .7, s * .56, 0, PI);
+  line(-s * .35, s * .03, s * .35, s * .03);
+  line(-s * .26, s * .23, -s * .18, s * .48);
+  line(s * .26, s * .23, s * .18, s * .48);
+  arc(-s * .39, s * .05, s * .25, s * .3, HALF_PI, PI + HALF_PI);
+  arc(s * .39, s * .05, s * .25, s * .3, -HALF_PI, HALF_PI);
+  arc(0, -s * .16, s * .46, s * .18, PI, TWO_PI);
+}
+
+function drawPavilionMotif(s, alpha) {
+  motifStroke(alpha);
+  beginShape();
+  vertex(-s * .5, -s * .12);
+  vertex(-s * .25, -s * .26);
+  vertex(0, -s * .38);
+  vertex(s * .25, -s * .26);
+  vertex(s * .5, -s * .12);
+  endShape();
+  line(-s * .36, -s * .08, -s * .3, s * .42);
+  line(s * .36, -s * .08, s * .3, s * .42);
+  line(-s * .3, s * .42, s * .3, s * .42);
+  line(-s * .1, -s * .13, -s * .1, s * .42);
+  line(s * .1, -s * .13, s * .1, s * .42);
+}
+
+function drawColumnMotif(s, alpha) {
+  motifStroke(alpha);
+  for (const x of [-s * .24, s * .24]) {
+    line(x - s * .08, -s * .42, x + s * .08, -s * .42);
+    line(x - s * .11, s * .42, x + s * .11, s * .42);
+    line(x - s * .05, -s * .38, x - s * .05, s * .38);
+    line(x + s * .05, -s * .38, x + s * .05, s * .38);
+  }
+  arc(0, -s * .42, s * .72, s * .28, PI, TWO_PI);
+}
+
+function drawScrollMotif(s, alpha) {
+  motifStroke(alpha);
+  rectMode(CENTER);
+  rect(0, 0, s * .72, s * .58, s * .05);
+  arc(-s * .36, 0, s * .15, s * .58, HALF_PI, PI + HALF_PI);
+  arc(s * .36, 0, s * .15, s * .58, -HALF_PI, HALF_PI);
+  for (let i = -2; i <= 2; i += 1) {
+    line(-s * .22, i * s * .085, s * .22, i * s * .085);
+  }
+}
+
+function drawStairMotif(s, alpha) {
+  motifStroke(alpha);
+  let x = -s * .42;
+  let y = s * .35;
+  for (let i = 0; i < 6; i += 1) {
+    const nx = x + s * .14;
+    line(x, y, nx, y);
+    line(nx, y, nx, y - s * .12);
+    x = nx;
+    y -= s * .12;
+  }
+}
+
+function drawGrainMotif(s, alpha) {
+  motifStroke(alpha);
+  line(0, s * .45, 0, -s * .45);
+  for (let i = 0; i < 6; i += 1) {
+    const y = s * .3 - i * s * .12;
+    const side = i % 2 === 0 ? -1 : 1;
+    arc(side * s * .1, y, s * .24, s * .13, side < 0 ? -HALF_PI : HALF_PI, side < 0 ? HALF_PI : PI + HALF_PI);
+  }
+  line(-s * .24, s * .42, 0, -s * .02);
+  line(s * .24, s * .42, 0, -s * .02);
+}
+
+function drawWeaponMotif(s, alpha) {
+  motifStroke(alpha);
+  line(-s * .42, s * .4, s * .3, -s * .34);
+  beginShape();
+  vertex(s * .3, -s * .34);
+  vertex(s * .48, -s * .47);
+  vertex(s * .4, -s * .25);
+  endShape();
+  line(-s * .12, s * .12, s * .04, s * .28);
+  line(-s * .04, s * .04, s * .12, s * .2);
+}
+
+function drawEnclosureMotif(s, alpha) {
+  motifStroke(alpha);
+  rectMode(CENTER);
+  rect(0, 0, s * .76, s * .62);
+  for (let i = -2; i <= 2; i += 1) {
+    const x = i * s * .12;
+    line(x, -s * .31, x, s * .31);
+  }
+  line(-s * .38, -s * .12, s * .38, -s * .12);
+}
+
+function drawOrbitMotif(s, alpha) {
+  motifStroke(alpha * .82, false);
+  ellipse(0, 0, s * .9, s * .52);
+  ellipse(0, 0, s * .62, s * .88);
+  rotate(-.25);
+  ellipse(0, 0, s * 1.05, s * .34);
 }
 
 function drawDust() {
@@ -634,9 +1095,7 @@ function drawGroup(group) {
   const ink = group.red ? [190, 91, 59] : [195, 171, 128];
 
   push();
-  translate(...group.anchor);
-  scale(group.zoom);
-  translate(-group.anchor[0], -group.anchor[1]);
+  applyGroupTransform(group);
 
   if (group.i === chosen) drawAura(group, reveal);
 
@@ -655,16 +1114,18 @@ function drawGroup(group) {
     if (opacity > 0) drawStar(point, group, opacity);
   }
 
-  noStroke();
-  fill(...ink, (184 + group.light * 71) * reveal);
-  textSize(group.i === 28 ? ts(18) : ts(15));
-  push();
-  translate(group.c[0] + ts(29), group.c[1] + ts(24));
-  rotate(sin(group.i * 3) * 0.15);
-  for (let k = 0; k < group.name.length; k += 1) {
-    text(group.name[k], 0, k * ts(16));
+  if (group.i !== chosen || focusEase(group) < .32) {
+    noStroke();
+    fill(...ink, (184 + group.light * 71) * reveal * (group.i === chosen ? (1 - focusEase(group)) : 1));
+    textSize(group.i === 28 ? ts(18) : ts(15));
+    push();
+    translate(group.c[0] + ts(29), group.c[1] + ts(24));
+    rotate(sin(group.i * 3) * 0.15);
+    for (let k = 0; k < group.name.length; k += 1) {
+      text(group.name[k], 0, k * ts(16));
+    }
+    pop();
   }
-  pop();
   pop();
 }
 
@@ -868,12 +1329,11 @@ function hitGroup(x, y) {
   if (x < 0 || x > W || y < 0 || y > H) return -1;
 
   let best = -1;
-  let closest = Math.max(ts(18), 18 / sceneScale);
-  for (const group of groups) {
-    const points = group.pts.map((point) => ({
-      x: group.anchor[0] + (point.x - group.anchor[0]) * group.zoom,
-      y: group.anchor[1] + (point.y - group.anchor[1]) * group.zoom
-    }));
+  let closest = Math.max(ts(19), 20 / sceneScale);
+  const candidates = chosen >= 0 ? [groups[chosen]] : groups;
+
+  for (const group of candidates) {
+    const points = group.pts.map((point) => transformedPoint(group, point));
 
     for (let j = 0; j < points.length; j += 1) {
       let distance = dist(x, y, points[j].x, points[j].y);
@@ -907,6 +1367,8 @@ function setChosen(index, x = W * 0.5, y = H * 0.5) {
     window.starChartUI?.select(null);
   }
 }
+
+window.starChartSetChosen = setChosen;
 
 function togglePause() {
   paused = !paused;
