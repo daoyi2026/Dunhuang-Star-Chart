@@ -856,83 +856,59 @@ function drawZiweiReferenceTraceV9(pts,c,p,detailP,elapsed){
   const trace=window.ZIWEI_TRACE;
   if(!trace||!trace.length||p<=0)return;
 
-  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
-  pts.forEach(pt=>{minX=min(minX,pt.x);maxX=max(maxX,pt.x);minY=min(minY,pt.y);maxY=max(maxY,pt.y)});
-
-  const boxW=maxX-minX,boxH=maxY-minY;
-  // The traced palace is derived from the chosen reference composition.
-  // It fills the constellation interior, while the actual outer stars remain the wall anchors.
-  const left=minX+boxW*.105;
-  const right=maxX-boxW*.085;
-  const top=minY+boxH*.055;
-  const bottom=maxY-boxH*.105;
-  const w=right-left,h=bottom-top;
-
   push();
   noFill();
 
   trace.forEach((poly,i)=>{
     if(poly.length<2)return;
 
-    let cy=0,cx=0;
-    poly.forEach(q=>{cx+=q[0];cy+=q[1]});
-    cx/=poly.length;cy/=poly.length;
+    let cy=0;
+    poly.forEach(q=>{cy+=q[1]});
+    cy/=poly.length;
 
-    // Main halls in the upper/middle field emerge first; lower courts and side architecture follow.
-    const spatialDelay=.18*(cy/1000)+.08*abs(cx-620)/620;
-    const local=easeRange(elapsed,2.05+spatialDelay*3.2,4.2+spatialDelay*3.8);
+    // Top/central palaces appear first, then lower courts and secondary architecture.
+    const order=constrain((cy-170)/520,0,1);
+    const local=easeRange(elapsed,1.95+order*.85,4.25+order*1.15);
     if(local<=0)return;
 
-    const warm=i%7!==0;
-    const baseA=(warm?42:24)*local*(.72+.28*detailP);
-    const glowA=(warm?10:7)*local;
-
+    const major=poly.length>18;
     const visible=max(2,floor(1+(poly.length-1)*local));
 
-    // subtle halo pass
-    stroke(warm?236:141,warm?194:166,warm?126:170,glowA);
-    strokeWeight(ts(.82));
+    // warm underglow
+    stroke(239,188,112,(major?13:7)*local);
+    strokeWeight(ts(major?.72:.48));
     beginShape();
-    for(let j=0;j<visible;j++){
-      const q=poly[j],x=left+w*(q[0]/1000),y=top+h*(q[1]/1000);
-      vertex(x,y);
-    }
+    for(let j=0;j<visible;j++) vertex(poly[j][0],poly[j][1]);
     endShape();
 
-    // fine traced line pass
-    stroke(warm?232:143,warm?199:169,warm?145:171,baseA);
-    strokeWeight(ts(i%9===0?.34:.24));
+    // faithful fine linework traced from the chosen palace reference
+    stroke(232,198,139,(major?62:39)*local*(.8+.2*detailP));
+    strokeWeight(ts(major?.30:.22));
     beginShape();
-    for(let j=0;j<visible;j++){
-      const q=poly[j],x=left+w*(q[0]/1000),y=top+h*(q[1]/1000);
-      vertex(x,y);
-    }
+    for(let j=0;j<visible;j++) vertex(poly[j][0],poly[j][1]);
     endShape();
 
-    // a faint second ink line gives the line drawing an old-jiehua double-stroke feeling
-    if(i%4===0&&local>.55){
-      stroke(117,151,160,8*local);
-      strokeWeight(ts(.18));
+    // blue-gray ghost line to keep the Dunhuang/celestial translucency
+    if(i%5===0&&local>.58){
+      stroke(121,153,163,8*local);
+      strokeWeight(ts(.17));
       beginShape();
-      for(let j=0;j<visible;j++){
-        const q=poly[j],x=left+w*(q[0]/1000)+ts(.45),y=top+h*(q[1]/1000)+ts(.3);
-        vertex(x,y);
-      }
+      for(let j=0;j<visible;j++) vertex(poly[j][0]+ts(.35),poly[j][1]+ts(.25));
       endShape();
     }
   });
 
-  // The traced imperial axis receives a very restrained living light.
-  const axisA={x:left+w*.57,y:top+h*.24};
-  const axisB={x:left+w*.48,y:top+h*.78};
+  // restrained light runs through the central imperial axis.
+  const top={x:tx(505),y:ty(265)};
+  const bottom={x:tx(500),y:ty(500)};
   for(let s=0;s<3;s++){
-    const t=(clock*(.035+s*.007)+s*.33)%1;
-    const x=lerp(axisB.x,axisA.x,t),y=lerp(axisB.y,axisA.y,t);
+    const t=(clock*(.032+s*.006)+s*.33)%1;
+    const x=lerp(bottom.x,top.x,t),y=lerp(bottom.y,top.y,t);
     noStroke();
-    fill(255,182,84,26*p);
-    circle(x,y,ts(4.2));
-    fill(255,232,184,100*p);
-    circle(x,y,ts(.75));
+    fill(255,184,86,24*p);
+    circle(x,y,ts(4));
+    fill(255,232,186,105*p);
+    circle(x,y,ts(.72));
   }
 
   pop();
