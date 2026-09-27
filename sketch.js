@@ -106,10 +106,10 @@ function draw(){
   const mx=(mouseX-ox)/sceneScale,my=(mouseY-oy)/sceneScale;hoverId=hitGroup(mx,my);cursor(hoverId<0?'default':'pointer');
   clear();push();translate(ox,oy);scale(sceneScale);drawMilkyDust();drawAmbient();drawOrbitalTrails();
   const ease=1-Math.exp(-dt*6.5);
-  groups.forEach(g=>{g.focus=lerp(g.focus,g.i===chosen?1:0,ease*.74);g.light=lerp(g.light,g.i===chosen?1:(g.i===hoverId?.26:0),ease);g.flow+=dt*(.18+g.light*.16)});
+  groups.forEach(g=>{g.focus=lerp(g.focus,g.i===chosen?1:0,ease*.74);g.light=lerp(g.light,g.i===chosen?1:(g.i===hoverId?.26:0),ease);g.flow+=dt*(.14+g.light*.34)});
   if(chosen>=0)drawFocusVeil(groups[chosen]);
   groups.forEach(g=>{if(g.i!==chosen)drawGroup(g,chosen>=0?.055:1)});
-  if(chosen>=0){const g=groups[chosen];if(g.name==='紫微垣')drawZiweiArchitecture(g);else drawConstellationEcho(g);drawGroup(g,1)}
+  if(chosen>=0){const g=groups[chosen];if(g.name==='紫微垣'){push();drawingContext.globalAlpha=.22;drawZiweiArchitecture(g);pop()}else drawConstellationEcho(g);drawGroup(g,1)}
   drawRings(dt);drawSeal();pop();
 }
 
@@ -179,17 +179,84 @@ function drawGroup(g,alphaMul=1){
   pop();
 }
 function drawInkLine(a,b,progress,seed,red,light,alphaMul){
-  if(progress<=0)return;const dx=b.x-a.x,dy=b.y-a.y,len=sqrt(dx*dx+dy*dy);if(len<.001)return;const ux=dx/len,uy=dy/len,px=-uy,py=ux,vis=len*progress,base=red?[197,86,53]:[205,184,140],glow=red?[236,126,80]:[234,211,162];
-  stroke(glow[0],glow[1],glow[2],(12+light*26)*alphaMul);strokeWeight(ts(2.3+light*.5));line(a.x,a.y,a.x+dx*progress,a.y+dy*progress);
-  for(let seg=0;seg<80;seg++){const start=seg*ts(4.5);if(start>=vis)break;const rs=seed+seg*1.913,end=Math.min(start+ts(2)+h(rs+8)*ts(4.2),vis);if(h(rs+21)<.1&&seg%5!==0)continue;const js=(h(rs+2)-.5)*ts(.5),je=(h(rs+3)-.5)*ts(.5);stroke(base[0],base[1],base[2],(95+light*80+h(rs+55)*22)*alphaMul);strokeWeight(ts(.5)+h(rs+44)*ts(.55));line(a.x+ux*start+px*js,a.y+uy*start+py*js,a.x+ux*end+px*je,a.y+uy*end+py*je)}
+  if(progress<=0)return;
+  const dx=b.x-a.x,dy=b.y-a.y,len=sqrt(dx*dx+dy*dy);if(len<.001)return;
+  const ux=dx/len,uy=dy/len,px=-uy,py=ux,vis=len*progress;
+  const base=red?[197,86,53]:[205,184,140],glow=red?[247,139,79]:[241,218,169];
+  const breath=.72+.28*sin(clock*.72+seed*.021);
+  const energy=.72+breath*.28+light*.38;
+
+  stroke(glow[0],glow[1],glow[2],(9+light*31)*alphaMul*energy);
+  strokeWeight(ts(2.1+light*.8));
+  line(a.x,a.y,a.x+dx*progress,a.y+dy*progress);
+
+  for(let seg=0;seg<80;seg++){
+    const start=seg*ts(4.5);if(start>=vis)break;
+    const rs=seed+seg*1.913,end=Math.min(start+ts(2)+h(rs+8)*ts(4.2),vis);
+    if(h(rs+21)<.1&&seg%5!==0)continue;
+    const js=(h(rs+2)-.5)*ts(.5),je=(h(rs+3)-.5)*ts(.5);
+    stroke(base[0],base[1],base[2],(86+light*92+h(rs+55)*20)*alphaMul*energy);
+    strokeWeight(ts(.48)+h(rs+44)*ts(.58));
+    line(a.x+ux*start+px*js,a.y+uy*start+py*js,a.x+ux*end+px*je,a.y+uy*end+py*je);
+  }
+
+  if(progress>.96){
+    const travel=(clock*(.075+light*.055)+h(seed)*3.7)%1;
+    const txp=a.x+dx*travel,typ=a.y+dy*travel;
+    noStroke();
+    fill(glow[0],glow[1],glow[2],(28+light*62)*alphaMul);
+    circle(txp,typ,ts(4.8+light*2.5));
+    fill(255,239,202,(105+light*105)*alphaMul);
+    circle(txp,typ,ts(.85+light*.35));
+  }
 }
 function drawStar(p,g,opacity){
-  const slow=.5+.5*sin(clock*.68+p.p),flash=pow(max(0,sin(clock*1.1+p.p*1.7)),9),light=constrain(slow*.3+flash*.8+g.light*.7,0,1),c=g.red?[247,145,87]:[245,219,169],size=p.r*(1+g.light*.12);
-  noStroke();fill(c[0],c[1],c[2],opacity*(8+g.light*10));circle(p.x,p.y,size*7);fill(c[0],c[1],c[2],opacity*(18+g.light*20));circle(p.x,p.y,size*4);fill(g.red?132:139,g.red?58:111,g.red?34:74,opacity*230);circle(p.x,p.y,size*1.45);fill(242,216,165,opacity*(125+light*110));circle(p.x,p.y,size*.52);
-  if(light>.72||g.light>.15){stroke(c[0],c[1],c[2],opacity*100);strokeWeight(ts(.45));const ray=size*(1.35+light*.8);line(p.x-ray,p.y,p.x+ray,p.y);line(p.x,p.y-ray,p.x,p.y+ray)}
+  const slow=.5+.5*sin(clock*.72+p.p);
+  const flash=pow(max(0,sin(clock*1.08+p.p*1.7)),9);
+  const light=constrain(slow*.38+flash*.82+g.light*.72,0,1);
+  const c=g.red?[249,146,84]:[246,220,169];
+  const breathe=.94+slow*.13;
+  const size=p.r*breathe*(1+g.light*.15);
+
+  noStroke();
+  fill(c[0],c[1],c[2],opacity*(5+slow*12+g.light*18));
+  circle(p.x,p.y,size*(8.5+g.light*2.5));
+  fill(c[0],c[1],c[2],opacity*(14+slow*20+g.light*28));
+  circle(p.x,p.y,size*4.4);
+  fill(g.red?132:139,g.red?58:111,g.red?34:74,opacity*235);
+  circle(p.x,p.y,size*1.45);
+  fill(250,227,183,opacity*(126+light*120));
+  circle(p.x,p.y,size*.54);
+
+  if(light>.66||g.light>.12){
+    stroke(c[0],c[1],c[2],opacity*(75+light*60));
+    strokeWeight(ts(.43));
+    const ray=size*(1.45+light*.95);
+    line(p.x-ray,p.y,p.x+ray,p.y);
+    line(p.x,p.y-ray,p.x,p.y+ray);
+  }
 }
 function drawAura(g,reveal){const c=g.red?[226,117,72]:[232,204,151];for(let pass=0;pass<3;pass++){stroke(c[0],c[1],c[2],(3+pass*2)*reveal);strokeWeight(ts(13-pass*4));for(let j=1;j<g.pts.length;j++)line(g.pts[j-1].x,g.pts[j-1].y,g.pts[j].x,g.pts[j].y)}}
-function drawFlow(g,alphaMul){const span=g.pts.length-1;if(span<=0)return;const head=(g.flow+g.i*.37)%span;for(let k=11;k>=0;k--){const pos=(head-k*.025+span)%span,idx=floor(pos);if(idx<0||idx>=g.pts.length-1)continue;const t=pos-idx,a=g.pts[idx],b=g.pts[idx+1],x=lerp(a.x,b.x,t),y=lerp(a.y,b.y,t),fade=(1-k/12)*alphaMul;noStroke();fill(248,220,164,fade*(80+g.light*90));circle(x,y,k===0?ts(2.1):ts(.85))}}
+function drawFlow(g,alphaMul){
+  const span=g.pts.length-1;if(span<=0)return;
+  const streams=g.i===chosen?2:1;
+  for(let s=0;s<streams;s++){
+    const head=(g.flow+g.i*.37+s*span*.46)%span;
+    for(let k=14;k>=0;k--){
+      const pos=(head-k*.022+span)%span,idx=floor(pos);
+      if(idx<0||idx>=g.pts.length-1)continue;
+      const t=pos-idx,a=g.pts[idx],b=g.pts[idx+1],x=lerp(a.x,b.x,t),y=lerp(a.y,b.y,t);
+      const fade=pow(1-k/15,1.5)*alphaMul;
+      noStroke();
+      fill(249,220,164,fade*(66+g.light*125));
+      circle(x,y,k===0?ts(2.6+g.light*.8):ts(.72+fade*.45));
+      if(k===0){
+        fill(255,238,199,fade*(150+g.light*85));
+        circle(x,y,ts(.92+g.light*.28));
+      }
+    }
+  }
+}
 
 function drawConstellationEcho(g){
   const f=focusEase(g);if(f<.04)return;push();applyTransform(g);noFill();
