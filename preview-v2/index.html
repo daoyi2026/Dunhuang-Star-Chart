@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#11100f" />
+  <meta name="description" content="敦煌星图：一幅可交互的古卷星空。点选星官，进入天象意向。" />
+  <title>敦煌星图 · 星河遗卷</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./style.css?v=20260927-v2" />
+</head>
+<body>
+  <main id="app" aria-label="敦煌星图交互画布"></main>
+
+  <div class="ui-shell">
+    <header class="title-block">
+      <p class="title-overline">DUNHUANG · CELESTIAL ATLAS</p>
+      <h1>敦煌星图</h1>
+      <p class="title-subtitle">星河遗卷 <span aria-hidden="true">·</span> 天上宫阙</p>
+      <div class="title-rule" aria-hidden="true"></div>
+      <p id="wayfinding" class="wayfinding"><span class="wayfinding-dot" aria-hidden="true"></span>点选星官，进入天象意向</p>
+    </header>
+
+    <aside id="detailPanel" class="detail-panel" aria-live="polite" aria-hidden="true">
+      <div class="panel-topline">
+        <div class="panel-kicker">CELESTIAL ARCHETYPE <span>/</span> 天象意向</div>
+        <button id="detailClose" class="detail-close" type="button" aria-label="关闭星官介绍">×</button>
+      </div>
+      <div class="panel-heading">
+        <span id="detailGlyph" class="detail-glyph">宫阙</span>
+        <h2 id="detailTitle">紫微垣</h2>
+      </div>
+      <p id="detailLead" class="detail-lead"></p>
+      <p id="detailNote" class="detail-note"></p>
+      <div class="detail-meta-row">
+        <p id="detailMeta" class="detail-meta"></p>
+        <p id="detailSource" class="detail-source"></p>
+      </div>
+    </aside>
+
+    <footer class="footer-note">
+      <p>据敦煌古星图意象重绘：纸上有尘，星河有光，群星各有其象。</p>
+      <p class="footer-hint">点选星官 <span>/</span> 点击空白返回 <span>/</span> 空格暂停 <span>/</span> S 保存</p>
+    </footer>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
+  <script src="./ui.js?v=20260927-v2"></script>
+  <script src="./music.js?v=20260927-11"></script>
+  <script src="./sketch.js?v=20260927-v2"></script>
+</body>
+</html>
