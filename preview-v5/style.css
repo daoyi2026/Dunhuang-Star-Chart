@@ -10,100 +10,19 @@ body{font-family:var(--font-calligraphy);font-synthesis:none}
 #app::after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 52% 43%,transparent 0 43%,rgba(0,0,0,.05) 68%,rgba(0,0,0,.25) 100%);}
 canvas{display:block;width:100%!important;height:100%!important;position:relative;z-index:2}
 
-.ziwei-vision{
-  position:fixed;
-  inset:0;
-  z-index:1;
-  pointer-events:none;
-  opacity:0;
-  background:#07111a;
-  transition:opacity 1.05s ease;
-  overflow:hidden;
-}
-.ziwei-vision::before{
-  content:"";
-  position:absolute;
-  inset:0;
-  z-index:0;
-  background:radial-gradient(ellipse at 52% 45%,rgba(22,46,68,.05),rgba(3,8,13,.32) 82%);
-  pointer-events:none;
-}
-.ziwei-vision img{
-  position:absolute;
-  inset:0;
-  z-index:1;
-  width:100%;
-  height:100%;
-  object-fit:cover;
-  object-position:center center;
-  opacity:0;
-  filter:saturate(.96) contrast(1.03) brightness(.92);
-  transform:scale(1.012);
-  transition:opacity 1.15s ease .12s,filter .8s ease,transform 1.2s ease;
-}
-.ziwei-vision::after{
-  content:"";
-  position:absolute;
-  z-index:2;
-  inset:0;
-  opacity:0;
-  pointer-events:none;
-  background:
-    radial-gradient(circle at 52% 44%,rgba(255,225,167,.08),transparent 28%),
-    linear-gradient(105deg,transparent 27%,rgba(255,222,154,.055) 48%,rgba(172,210,222,.04) 54%,transparent 70%);
-  mix-blend-mode:screen;
-  transform:translateX(-32%);
-}
-body.is-ziwei.ziwei-asset-ready .ziwei-vision{opacity:1}
-body.is-ziwei.ziwei-asset-ready .ziwei-vision img{
-  opacity:1;
-  animation:ziwei-poster-breathe 7.2s ease-in-out infinite;
-}
-body.is-ziwei.ziwei-asset-ready .ziwei-vision::after{
-  animation:ziwei-poster-sweep 10.5s ease-in-out 1.4s infinite;
-}
-@keyframes ziwei-poster-breathe{
-  0%,100%{filter:saturate(.94) contrast(1.02) brightness(.89);transform:scale(1.008)}
-  50%{filter:saturate(1.04) contrast(1.05) brightness(.98);transform:scale(1.016)}
-}
-@keyframes ziwei-poster-sweep{
-  0%,18%{opacity:0;transform:translateX(-34%)}
-  31%{opacity:.3}
-  51%{opacity:.08;transform:translateX(36%)}
-  61%,100%{opacity:0;transform:translateX(36%)}
-}
-body.is-ziwei .title-block,
+body.is-ziwei .title-block{opacity:.08!important;transform:translateY(-5px);filter:blur(.2px)}
 body.is-ziwei .footer-note{opacity:0!important}
 body.is-ziwei .detail-panel{
-  left:auto;
-  right:clamp(18px,2.4vw,34px);
-  bottom:clamp(18px,2.4vw,34px);
-  width:42px;
-  padding:0;
-  transform:none;
-  background:none;
-  text-shadow:none;
+  width:min(610px,calc(100vw - 62px));
+  bottom:clamp(18px,3vh,30px);
 }
-body.is-ziwei .detail-panel::before,
-body.is-ziwei .panel-line,
-body.is-ziwei .panel-kicker,
-body.is-ziwei .panel-heading,
-body.is-ziwei .detail-lead,
-body.is-ziwei .detail-note,
-body.is-ziwei .detail-meta-row{display:none}
-body.is-ziwei .panel-topline{display:block;margin:0}
-body.is-ziwei .detail-close{
-  display:block;
-  width:42px;height:42px;
-  border-color:rgba(229,196,128,.55);
-  background:rgba(5,11,17,.42);
-  color:#efd7a6;
-  font-size:27px;
-  line-height:38px;
-  box-shadow:0 0 22px rgba(221,167,82,.08);
-  backdrop-filter:blur(8px);
+body.is-ziwei .detail-panel::before{
+  opacity:.58;
 }
-
+body.is-ziwei .detail-note{
+  -webkit-line-clamp:1;
+  max-width:580px;
+}
 .ui-shell{position:fixed;inset:0;z-index:10;pointer-events:none;color:var(--ink)}
 .title-block{position:absolute;top:clamp(28px,4.5vh,48px);left:clamp(28px,4.6vw,72px);width:min(330px,31vw);pointer-events:none;text-shadow:0 2px 22px rgba(0,0,0,.55);transition:opacity .7s ease,transform .7s ease,filter .7s ease}
 .title-overline{margin:0 0 10px;color:#c3a36a;font-family:var(--font-kaiti);font-size:9px;letter-spacing:.24em;opacity:.82}
@@ -145,20 +64,6 @@ body.has-detail .footer-note{opacity:0}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}}
 
 /* V5 — selected Ziwei artwork is the scene, not a faint background layer */
-.ziwei-vision{
-  position:fixed!important;
-  inset:0!important;
-  z-index:3!important;
-  pointer-events:none!important;
-  opacity:0!important;
-  transform:none!important;
-  overflow:hidden!important;
-  background:#061019!important;
-  mix-blend-mode:normal!important;
-  -webkit-mask-image:none!important;
-  mask-image:none!important;
-  transition:opacity .8s ease!important;
-}
 .ziwei-vision::before{
   content:""!important;
   position:absolute!important;
@@ -181,7 +86,7 @@ body.has-detail .footer-note{opacity:0}
   transition:opacity .9s ease!important;
   animation:none!important;
 }
-body.is-ziwei.ziwei-asset-ready .ziwei-vision{opacity:1!important}
+body.is-ziwei.ziwei-asset-ready
 body.is-ziwei.ziwei-asset-ready .ziwei-vision img{opacity:1!important;animation:none!important}
 body.is-ziwei .title-block,
 body.is-ziwei .footer-note{opacity:0!important;pointer-events:none!important}
