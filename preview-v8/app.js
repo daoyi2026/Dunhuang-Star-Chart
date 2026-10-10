@@ -420,44 +420,6 @@
     paperTile = t;
     paperPattern = ctx.createPattern(t, 'repeat');
   }
-  function makeScrollPaper() {
-    scrollPaper = document.createElement('canvas');
-    scrollPaper.width = Math.round(W * DPR); scrollPaper.height = Math.round(H * DPR);
-    const g = scrollPaper.getContext('2d');
-    g.setTransform(DPR, 0, 0, DPR, 0, 0);
-    g.fillStyle = '#c9ad7f';
-    g.fillRect(0, 0, W, H);
-    const rand = rng(97);
-    // mottling and water stains
-    for (let i = 0; i < 70; i++) {
-      const x = rand() * W, y = rand() * H, r = 60 + rand() * 260;
-      const gr = g.createRadialGradient(x, y, 0, x, y, r);
-      const dark = rand() < 0.6;
-      gr.addColorStop(0, dark ? `rgba(110,72,36,${0.05 + rand() * 0.08})` : `rgba(240,218,170,${0.05 + rand() * 0.08})`);
-      gr.addColorStop(1, 'rgba(0,0,0,0)');
-      g.fillStyle = gr;
-      g.fillRect(x - r, y - r, r * 2, r * 2);
-    }
-    const pat = g.createPattern(paperTile, 'repeat');
-    g.globalAlpha = 0.9;
-    g.fillStyle = pat;
-    g.fillRect(0, 0, W, H);
-    g.globalAlpha = 1;
-    // fibres darker than the tile's light fibres
-    for (let i = 0; i < 2600; i++) {
-      const x = rand() * W, y = rand() * H, L = 3 + rand() * 18, a = (rand() - 0.5) * 0.3;
-      g.strokeStyle = `rgba(90,60,30,${0.03 + rand() * 0.07})`;
-      g.lineWidth = 0.4 + rand() * 0.5;
-      g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * L, y + Math.sin(a) * L); g.stroke();
-    }
-    // worn, browned edges
-    const v = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
-    v.addColorStop(0, 'rgba(80,48,20,0)');
-    v.addColorStop(1, 'rgba(80,48,20,.55)');
-    g.fillStyle = v;
-    g.fillRect(0, 0, W, H);
-  }
-
   // ---------- layout ----------
   let resizeTimer = 0;
   function resize() {
@@ -474,7 +436,7 @@
     const [ax, ay] = homeAnchor();
     if (!sel) { cam.ax = ax; cam.ay = ay; }
     bakeSky();
-    makeScrollPaper();
+    sheetDirty = true;
   }
   window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(resize, 160); });
 
@@ -492,7 +454,7 @@
       if (mobile) { tax = W * 0.5; tay = H * 0.29; } else { tax = W * (sel.isWall ? 0.38 : 0.36); tay = H * 0.5; }
       if (tour) { if (mobile) { tay = H * 0.33; } else { tax = W * 0.55; tay = H * 0.42; } }
     }
-    if (mode === 'now' || (trans.on && trans.toMode === 'now')) { tz = 1; tfx = 0; tfy = 0; [tax, tay] = homeAnchor(); }
+    if (mode === 'now' || scroll || (trans.on && trans.toMode === 'now')) { tz = 1; tfx = 0; tfy = 0; [tax, tay] = homeAnchor(); }
     else if (!sel && !reduceMotion) tz = 1 + 0.035 * Math.sin(clock * 0.07);   // a very slow breath of depth
     const e = 1 - Math.exp(-dt * (tour ? 1.5 : 2.6));
     cam.z += (tz - cam.z) * e;
@@ -989,69 +951,394 @@
     }
   }
 
-  // ---------- drawing: the scroll (古卷) ----------
+  // ---------- the scroll (古卷): a composed manuscript sheet ----------
+  // Prerendered once per size: aged paper, a framed circular 紫微宮圖, brush lines and
+  // ink dots composited by multiply, 占文 columns with ruled lines, title, colophon, seal.
+  const ST = window.SCROLL_TEXT || { names: {}, cols: [], title: '紫微宮圖', colophon: '', seal: '觀星無盡' };
+  const tradName = (n) => (ST.names[n] || n).replace(/[(（][^)）]*[)）]/g, '');
+  const SCROLL_PD = 58;
+  const INK = [38, 28, 20], CIN = [190, 70, 40];
+  const MS_FONT = '"LXGW WenKai TC","STKaiti","KaiTi","Kaiti TC",serif';
+  let sheet = null, sheetDirty = true, sheetLayout = null, rotS = 10;
+
+  function sheetLayoutFor() {
+    if (mobile) {
+      const r = Math.min(W * 0.45, H * 0.27);
+      const cx = W * 0.5, cy = Math.max(r + 70, H * 0.33);
+      return { cx, cy, r, text: { x0: 16, x1: W - 16, y0: cy + r + 30, y1: H - 86, fs: 16 }, colo: null, mobile: true };
+    }
+    const r = Math.min(H * 0.42, W * 0.29);
+    const cx = Math.max(W * 0.4, r + 190), cy = H * 0.5;
+    return { cx, cy, r, text: { x0: cx + r + 56, x1: W - 56, y0: 104, y1: H - 64, fs: Math.round(clamp(H / 38, 16, 22)) }, colo: { x: cx - r - 70, y0: cy - r * 0.55 }, mobile: false };
+  }
+  function sheetXY(L, ra, pd) {
+    const ph = (90 + rotS - ra) * D2R, rr = pd / SCROLL_PD * L.r * 0.94;
+    return [L.cx + rr * Math.cos(ph), L.cy - rr * Math.sin(ph)];
+  }
+
+  function brushLine(g, x0, y0, x1, y1, w, rnd, dryChance = 0.28) {
+    const L = Math.hypot(x1 - x0, y1 - y0);
+    if (L < 0.5) return;
+    const n = Math.max(3, Math.ceil(L / 2.5));
+    const ux = (x1 - x0) / L, uy = (y1 - y0) / L, px = -uy, py = ux;
+    const ph = rnd() * 6.28, amp = 0.25 + rnd() * 0.45, fr = 0.6 + rnd() * 0.9;
+    const dry = rnd() < dryChance ? 0.55 + rnd() * 0.35 : 2;
+    let lx = x0, ly = y0;
+    for (let i = 1; i <= n; i++) {
+      const t = i / n;
+      const off = Math.sin(t * Math.PI * fr + ph) * amp * Math.sin(t * Math.PI);
+      const x = x0 + ux * L * t + px * off, y = y0 + uy * L * t + py * off;
+      const press = 0.7 + 0.75 * Math.exp(-(((t - 0.05) / 0.08) ** 2)) + 0.25 * Math.exp(-(((t - 0.96) / 0.06) ** 2)) - 0.25 * t;
+      if (t > dry && rnd() < 0.45) { lx = x; ly = y; continue; }   // dry brush: the hair skips
+      g.lineWidth = w * press * (t > dry ? 0.6 : 1) * (0.9 + rnd() * 0.2);
+      g.beginPath(); g.moveTo(lx, ly); g.lineTo(x, y); g.stroke();
+      lx = x; ly = y;
+    }
+  }
+  function brushCircle(g, cx, cy, r, w, rnd, seg = 90) {
+    let prev = null;
+    const ph = rnd() * 6.28;
+    for (let i = 0; i <= seg; i++) {
+      const a = i / seg * Math.PI * 2;
+      const rr = r * (1 + 0.0035 * Math.sin(a * 3 + ph) + 0.002 * Math.sin(a * 7 + ph * 2));
+      const p = [cx + rr * Math.cos(a), cy + rr * Math.sin(a)];
+      if (prev) brushLine(g, prev[0], prev[1], p[0], p[1], w * (0.85 + 0.3 * Math.sin(a * 2 + ph)), rnd, 0.06);
+      prev = p;
+    }
+  }
+  function inkBlob(g, x, y, r, rnd) {
+    g.beginPath();
+    const n = 9, ph = rnd() * 6.28;
+    for (let i = 0; i <= n; i++) {
+      const a = i / n * Math.PI * 2 + ph, k = 0.78 + rnd() * 0.42;
+      const px = x + Math.cos(a) * r * k, py = y + Math.sin(a) * r * k * (0.85 + rnd() * 0.2);
+      if (i) g.lineTo(px, py); else g.moveTo(px, py);
+    }
+    g.closePath(); g.fill();
+  }
+  function vChars(g, str, x, y, fs, step, rnd, color) {
+    g.fillStyle = color;
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    for (let i = 0; i < str.length; i++) {
+      const s = fs * (0.94 + rnd() * 0.1);
+      g.font = `${s}px ${MS_FONT}`;
+      g.save();
+      g.translate(x + (rnd() - 0.5) * fs * 0.06, y + i * step);
+      g.rotate((rnd() - 0.5) * 0.06);
+      g.fillText(str[i], 0, 0);
+      g.restore();
+    }
+  }
+
+  function buildSheet() {
+    sheetDirty = false;
+    const L = sheetLayout = sheetLayoutFor();
+    const pw = Math.round(W * DPR), ph = Math.round(H * DPR);
+    sheet = document.createElement('canvas');
+    sheet.width = pw; sheet.height = ph;
+    const g = sheet.getContext('2d');
+    g.setTransform(DPR, 0, 0, DPR, 0, 0);
+    const rand = rng(1907);                       // the year Stein's Dunhuang finds reached London
+
+    // --- paper ---
+    g.fillStyle = '#cdb084';
+    g.fillRect(0, 0, W, H);
+    const lw = Math.ceil(W / 6), lh = Math.ceil(H / 6), lo = document.createElement('canvas');
+    lo.width = lw; lo.height = lh;
+    const lg = lo.getContext('2d'), img = lg.createImageData(lw, lh);
+    for (let y = 0; y < lh; y++) for (let x = 0; x < lw; x++) {
+      const n = fbm(x * 0.045, y * 0.045, 1.3), m = fbm(x * 0.012 + 5, y * 0.012, 4.2);
+      const v = clamp(0.25 + 0.55 * n + 0.35 * (m - 0.5));
+      const i = (y * lw + x) * 4;
+      img.data[i] = 168 + 58 * v; img.data[i + 1] = 132 + 60 * v; img.data[i + 2] = 86 + 52 * v; img.data[i + 3] = 150;
+    }
+    lg.putImageData(img, 0, 0);
+    g.imageSmoothingEnabled = true;
+    g.drawImage(lo, 0, 0, W, H);
+    // water stains: amorphous blots with a soft tide-line
+    for (let i = 0; i < 4; i++) {
+      const x = rand() * W, y = rand() * H, r = 50 + rand() * 150, sd = rand() * 50;
+      g.beginPath();
+      for (let k = 0; k <= 40; k++) {
+        const t = k / 40 * Math.PI * 2, rr = r * (0.7 + 0.45 * fbm(Math.cos(t) * 1.3 + sd, Math.sin(t) * 1.3 + sd, sd));
+        const px = x + Math.cos(t) * rr * 1.25, py = y + Math.sin(t) * rr * 0.8;
+        if (k) g.lineTo(px, py); else g.moveTo(px, py);
+      }
+      g.closePath();
+      g.save();
+      if ('filter' in g) g.filter = 'blur(10px)';
+      g.fillStyle = 'rgba(130,88,44,.06)'; g.fill();
+      if ('filter' in g) g.filter = 'blur(2.5px)';
+      g.strokeStyle = 'rgba(110,70,34,.1)'; g.lineWidth = 2.5; g.stroke();
+      g.restore();
+    }
+    // fibres
+    for (let i = 0; i < W * H / 260; i++) {
+      const x = rand() * W, y = rand() * H, l = 3 + rand() * 16, a = (rand() - 0.5) * 0.7 + (rand() < 0.5 ? 0 : Math.PI / 2);
+      const light = rand() < 0.55;
+      g.strokeStyle = light ? `rgba(240,222,182,${0.06 + rand() * 0.12})` : `rgba(96,64,32,${0.04 + rand() * 0.08})`;
+      g.lineWidth = 0.35 + rand() * 0.5;
+      g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + Math.cos(a) * l * 0.5 + (rand() - 0.5) * 3, y + Math.sin(a) * l * 0.5 + (rand() - 0.5) * 3, x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke();
+    }
+    // foxing, in clusters
+    for (let c = 0; c < 9; c++) {
+      const fx = rand() * W, fy = rand() * H;
+      for (let i = 0; i < 8 + rand() * 14; i++) {
+        const x = fx + (rand() - 0.5) * 120, y = fy + (rand() - 0.5) * 120, r = 0.6 + rand() * rand() * 5;
+        const sp = g.createRadialGradient(x, y, 0, x, y, r * 2.2);
+        sp.addColorStop(0, `rgba(110,62,26,${0.25 + rand() * 0.3})`);
+        sp.addColorStop(0.4, 'rgba(130,80,36,.12)');
+        sp.addColorStop(1, 'rgba(130,80,36,0)');
+        g.fillStyle = sp; g.fillRect(x - r * 2.2, y - r * 2.2, r * 4.4, r * 4.4);
+      }
+    }
+    // vertical creases from being rolled
+    const creases = [];
+    for (let i = 0; i < 4; i++) creases.push(W * (0.12 + i * 0.25 + (rand() - 0.5) * 0.08));
+    creases.forEach((cxs) => {
+      for (const [dx, col] of [[0, 'rgba(70,46,22,.16)'], [1.4, 'rgba(246,230,196,.22)']]) {
+        g.strokeStyle = col; g.lineWidth = 0.9;
+        g.beginPath();
+        for (let y = 0; y <= H; y += 12) { const x = cxs + dx + Math.sin(y * 0.013 + cxs) * 1.6; if (y) g.lineTo(x, y); else g.moveTo(x, y); }
+        g.stroke();
+      }
+      const band = g.createLinearGradient(cxs - 16, 0, cxs + 16, 0);
+      band.addColorStop(0, 'rgba(80,52,24,0)'); band.addColorStop(0.5, 'rgba(80,52,24,.06)'); band.addColorStop(1, 'rgba(80,52,24,0)');
+      g.fillStyle = band; g.fillRect(cxs - 16, 0, 32, H);
+    });
+    // browned edges
+    const eg = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.32, W / 2, H / 2, Math.hypot(W, H) * 0.56);
+    eg.addColorStop(0, 'rgba(92,56,22,0)'); eg.addColorStop(0.75, 'rgba(92,56,22,.18)'); eg.addColorStop(1, 'rgba(70,40,16,.55)');
+    g.fillStyle = eg; g.fillRect(0, 0, W, H);
+    [[0, 0, 26, H], [W - 26, 0, 26, H]].forEach(([x, y, w, h], k) => {
+      const e2 = g.createLinearGradient(k ? x + w : x, 0, k ? x : x + w, 0);
+      e2.addColorStop(0, 'rgba(70,40,16,.4)'); e2.addColorStop(1, 'rgba(70,40,16,0)');
+      g.fillStyle = e2; g.fillRect(x, y, w, h);
+    });
+
+    // --- ink and cinnabar are drawn on their own layers, then soaked into the paper ---
+    const mk = () => { const c = document.createElement('canvas'); c.width = pw; c.height = ph; const cg = c.getContext('2d'); cg.setTransform(DPR, 0, 0, DPR, 0, 0); cg.lineCap = 'round'; cg.lineJoin = 'round'; return [c, cg]; };
+    const [inkC, ink] = mk(), [cinC, cin] = mk();
+    ink.strokeStyle = ink.fillStyle = `rgb(${INK})`;
+    cin.strokeStyle = cin.fillStyle = `rgb(${CIN})`;
+
+    // chart frame: a heavy outer ring and a fine inner ring, 内规 in cinnabar
+    brushCircle(ink, L.cx, L.cy, L.r, 2.6, rand);
+    brushCircle(ink, L.cx, L.cy, L.r - 6, 0.9, rand);
+    brushCircle(cin, L.cx, L.cy, NEI_GUI / SCROLL_PD * L.r * 0.94, 0.8, rand, 70);
+
+    // asterisms inside the frame
+    const occ = new Map(), CELL = 5;
+    const mark = (x, y, rad) => { for (let gx = Math.floor((x - rad) / CELL); gx <= Math.floor((x + rad) / CELL); gx++) for (let gy = Math.floor((y - rad) / CELL); gy <= Math.floor((y + rad) / CELL); gy++) occ.set(gx + ',' + gy, (occ.get(gx + ',' + gy) || 0) + 1); };
+    const cost = (x0, y0, x1, y1) => { let c = 0; for (let gx = Math.floor(x0 / CELL); gx <= Math.floor(x1 / CELL); gx++) for (let gy = Math.floor(y0 / CELL); gy <= Math.floor(y1 / CELL); gy++) c += occ.get(gx + ',' + gy) || 0; return c; };
+    const inside = (x, y, pad = 8) => Math.hypot(x - L.cx, y - L.cy) < L.r - pad;
+    const chartAsts = asts.filter((a) => a.minpd < SCROLL_PD - 1);
+    ink.save(); ink.beginPath(); ink.arc(L.cx, L.cy, L.r - 8, 0, Math.PI * 2); ink.clip();
+    cin.save(); cin.beginPath(); cin.arc(L.cx, L.cy, L.r - 8, 0, Math.PI * 2); cin.clip();
+    for (const a of asts) { a.sc = null; a.scLabel = null; }
+    for (const a of chartAsts) {
+      a.sc = a.lines.map((line) => line.map((v) => sheetXY(L, v.ra, v.pd)));
+      const lay = a.isWall ? cin : ink;
+      lay.globalAlpha = a.main ? 0.92 : (mobile ? 0.4 : 0.6);
+      a.sc.forEach((line) => {
+        for (let j = 1; j < line.length; j++) {
+          brushLine(lay, line[j - 1][0], line[j - 1][1], line[j][0], line[j][1], a.isWall ? 2.3 : (a.main ? 1.55 : 1.05), rand);
+          const [x0, y0] = line[j - 1], [x1, y1] = line[j], n = Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 3);
+          for (let k = 0; k <= n; k++) mark(x0 + (x1 - x0) * k / n, y0 + (y1 - y0) * k / n, 2);
+        }
+      });
+      lay.globalAlpha = 1;
+      const seen = new Set();
+      a.sc.forEach((line) => line.forEach(([x, y]) => {
+        const key = Math.round(x) + ',' + Math.round(y);
+        if (seen.has(key)) return; seen.add(key);
+        const ox = (rand() - 0.5) * 1.4, oy = (rand() - 0.5) * 1.4;   // a copyist's hand never lands exactly on the line end
+        const r = (a.main ? 3.1 : 2.2) * (mobile ? 0.75 : 1);
+        if (a.main) inkBlob(cin, x + ox, y + oy, r, rand); else inkBlob(ink, x + ox, y + oy, r, rand);
+        mark(x, y, r + 2);
+      }));
+    }
+    ink.restore(); cin.restore();
+
+    // names: try spots around each asterism, keep the one that crosses the least ink
+    const placeLabel = (a, fs) => {
+      const nm = tradName(a.name), step = fs * 1.06, hgt = (nm.length - 1) * step + fs, wid = fs;
+      let xs = [], ys = [];
+      a.sc.forEach((l) => l.forEach(([x, y]) => { xs.push(x); ys.push(y); }));
+      const bx0 = Math.min(...xs), bx1 = Math.max(...xs), by0 = Math.min(...ys), by1 = Math.max(...ys);
+      const mx = (bx0 + bx1) / 2, my = (by0 + by1) / 2;
+      const cands = [[bx1 + wid * 0.8, my], [bx0 - wid * 0.8, my], [mx, by0 - hgt / 2 - 6], [mx, by1 + hgt / 2 + 6],
+        [bx1 + wid * 0.8, by0 + hgt / 2], [bx1 + wid * 0.8, by1 - hgt / 2], [bx0 - wid * 0.8, by0 + hgt / 2], [bx0 - wid * 0.8, by1 - hgt / 2], [mx + wid, my]];
+      let best = null, bc = 1e9;
+      cands.forEach(([x, y], i) => {
+        const x0 = x - wid / 2, y0 = y - hgt / 2, x1 = x + wid / 2, y1 = y + hgt / 2;
+        if (!inside(x0, y0, 12) || !inside(x1, y1, 12) || !inside(x0, y1, 12) || !inside(x1, y0, 12)) return;
+        const c = cost(x0, y0, x1, y1) + i * 0.6;
+        if (c < bc) { bc = c; best = [x, y0 + fs / 2, x0, y0, x1, y1]; }
+      });
+      if (!best) return;
+      const [x, y, x0, y0, x1, y1] = best;
+      for (let yy = y0 - 6; yy <= y1 + 6; yy += CELL) for (let xx = x0 - 6; xx <= x1 + 6; xx += CELL) { mark(xx, yy, 1); mark(xx, yy, 1); mark(xx, yy, 1); }
+      a.scLabel = [x, y, fs, step];
+    };
+    const fsMain = mobile ? 11.5 : clamp(L.r / 24, 11, 16), fsMinor = fsMain * 0.72;
+    chartAsts.filter((a) => a.main).sort((p, q) => (q.isWall ? 1 : 0) - (p.isWall ? 1 : 0)).forEach((a) => placeLabel(a, a.isWall ? fsMain * 1.15 : fsMain));
+    if (!mobile) chartAsts.filter((a) => !a.main).forEach((a) => placeLabel(a, fsMinor));
+    chartAsts.forEach((a) => {
+      if (!a.scLabel) return;
+      const [x, y, fs, step] = a.scLabel;
+      const lay = a.isWall ? cin : ink;
+      lay.globalAlpha = a.main ? 0.95 : 0.7;
+      vChars(lay, tradName(a.name), x, y, fs, step, rand, a.isWall ? `rgb(${CIN})` : `rgb(${INK})`);
+      lay.globalAlpha = 1;
+    });
+
+    // --- 占文 columns, right to left, with ruled lines ---
+    const T = L.text, fs = T.fs, step = fs * 1.12, colW = fs * 1.75;
+    const rows = Math.max(4, Math.floor((T.y1 - T.y0 - fs) / step) + 1);
+    const cols = [];
+    const titleCol = { chars: ST.title.split('').map((c) => [c, 'ink']), big: true };
+    cols.push(titleCol);
+    ST.cols.forEach((e) => {
+      const seq = [...e.h].map((c) => [c, 'cin']).concat([[' ', 'gap']], [...e.t].map((c) => [c, 'ink']));
+      for (let i = 0; i < seq.length; i += rows) cols.push({ chars: seq.slice(i, i + rows) });
+    });
+    const bigStep = step * 1.5, bigCol = colW * 1.5;
+    const maxCols = Math.floor((T.x1 - T.x0) / colW);
+    let x = T.x1 - bigCol / 2, used = 0;
+    const ruleXs = [T.x1];
+    for (const c of cols) {
+      const cw = c.big ? bigCol : colW;
+      if (x - cw / 2 < T.x0 || used >= maxCols + 1) break;
+      if (c.big) {
+        c.chars.forEach(([ch], i) => vChars(ink, ch, x, T.y0 + fs * 0.8 + i * bigStep, fs * 1.55, 0, rand, `rgb(${INK})`));
+      } else {
+        c.chars.forEach(([ch, kind], i) => {
+          if (kind === 'gap') return;
+          vChars(kind === 'cin' ? cin : ink, ch, x, T.y0 + fs / 2 + i * step, fs, 0, rand, kind === 'cin' ? `rgb(${CIN})` : `rgb(${INK})`);
+        });
+      }
+      ruleXs.push(x - cw / 2);
+      x -= cw; used++;
+      if (c.big) x -= colW * 0.3;
+    }
+    // 乌丝栏 drawn in faded cinnabar straight onto the paper
+    g.strokeStyle = 'rgba(150,62,38,.32)'; g.lineCap = 'round';
+    const top = T.y0 - fs * 0.6, bot = T.y0 + (rows - 1) * step + fs * 0.9;
+    ruleXs.forEach((rx) => brushLine(g, rx, top, rx + (rand() - 0.5) * 2, bot, 0.6, rand, 0.4));
+    brushLine(g, ruleXs[ruleXs.length - 1], top, T.x1, top, 0.8, rand, 0.2);
+    brushLine(g, ruleXs[ruleXs.length - 1], bot, T.x1, bot, 0.8, rand, 0.2);
+
+    // --- colophon and seal (desktop: left of the chart; phone: end of the text block) ---
+    const sealSize = mobile ? 34 : 44;
+    let sx, sy;
+    if (L.colo) {
+      vChars(ink, ST.colophon, L.colo.x, L.colo.y0, fs * 0.82, fs * 0.92, rand, `rgb(${INK})`);
+      sx = L.colo.x - sealSize / 2; sy = L.colo.y0 + ST.colophon.length * fs * 0.92 + 10;
+    } else {
+      sx = Math.max(T.x0, x - sealSize / 2 + colW * 0.2); sy = bot - sealSize;
+    }
+    // 白文 seal: cinnabar block with the characters cut out, worn at the edges
+    cin.save();
+    cin.translate(sx + sealSize / 2, sy + sealSize / 2); cin.rotate(-0.03);
+    cin.globalAlpha = 0.9;
+    cin.beginPath();
+    const hs = sealSize / 2;
+    for (let i = 0; i <= 24; i++) {
+      const t = i / 24, side = Math.floor(t * 4), f = t * 4 - side, j = (rand() - 0.5) * 1.2;
+      const p = [[-hs + f * 2 * hs, -hs + j], [hs + j, -hs + f * 2 * hs], [hs - f * 2 * hs, hs + j], [-hs + j, hs - f * 2 * hs]][Math.min(3, side)];
+      if (i) cin.lineTo(p[0], p[1]); else cin.moveTo(p[0], p[1]);
+    }
+    cin.closePath(); cin.fill();
+    cin.globalCompositeOperation = 'destination-out';
+    cin.font = `${sealSize * 0.36}px ${MS_FONT}`; cin.textAlign = 'center'; cin.textBaseline = 'middle';
+    const sc = ST.seal.split('');                       // read right column first, top to bottom
+    [[hs * 0.45, -hs * 0.45, 0], [hs * 0.45, hs * 0.45, 1], [-hs * 0.45, -hs * 0.45, 2], [-hs * 0.45, hs * 0.45, 3]].forEach(([px, py, i]) => cin.fillText(sc[i] || '', px, py));
+    for (let i = 0; i < 70; i++) { cin.globalAlpha = 0.3 + rand() * 0.6; cin.beginPath(); cin.arc((rand() - 0.5) * sealSize, (rand() - 0.5) * sealSize, rand() * 1.4, 0, 7); cin.fill(); }
+    cin.restore();
+
+    // ink sinks into the fibres: knock a little paper texture out of both layers
+    [ink, cin].forEach((lay) => {
+      lay.save(); lay.setTransform(1, 0, 0, 1, 0, 0);
+      lay.globalCompositeOperation = 'destination-out';
+      lay.globalAlpha = 0.28;
+      lay.fillStyle = lay.createPattern(paperTile, 'repeat');
+      lay.fillRect(0, 0, pw, ph);
+      lay.restore();
+    });
+    // soak: a blurred bleed, then the sharp mark, both multiplied into the paper
+    g.save(); g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalCompositeOperation = 'multiply';
+    [[inkC, 0.22, 1.6 * DPR], [cinC, 0.2, 1.4 * DPR]].forEach(([c, a, b]) => {
+      if ('filter' in g) g.filter = `blur(${b}px)`;
+      g.globalAlpha = a; g.drawImage(c, 0, 0);
+    });
+    if ('filter' in g) g.filter = 'none';
+    g.globalAlpha = 0.9; g.drawImage(inkC, 0, 0);
+    g.globalAlpha = 0.86; g.drawImage(cinC, 0, 0);
+    g.restore();
+
+    // losses: a few holes near the edges and along a crease; the night shows through
+    // holes only where nothing is written: off the chart, the text block, the colophon and the seal
+    const keepOut = [[L.cx - L.r - 24, L.cy - L.r - 24, L.cx + L.r + 24, L.cy + L.r + 24],
+      [T.x0 - 20, T.y0 - 30, T.x1 + 20, bot + 20], [sx - 20, sy - 20, sx + sealSize + 20, sy + sealSize + 20]];
+    if (L.colo) keepOut.push([L.colo.x - 30, L.colo.y0 - 30, L.colo.x + 30, sy + sealSize + 20]);
+    const clear = (x, y, r) => keepOut.every(([a, b, c, d]) => x + r < a || x - r > c || y + r < b || y - r > d);
+    const holes = [];
+    const want = mobile ? 2 : 4, maxR = mobile ? 9 : 22;
+    for (let tries = 0; tries < 200 && holes.length < want; tries++) {
+      const r = (mobile ? 5 : 6) + rand() * (maxR - 6);
+      const edge = rand() < 0.7;
+      const x = edge ? (rand() < 0.5 ? 6 + rand() * 40 : W - 6 - rand() * 40) : creases[Math.floor(rand() * creases.length)];
+      const y = 20 + rand() * (H - 40);
+      if (x < 0 || x > W || !clear(x, y, r * 1.5) || holes.some(([hx, hy]) => Math.hypot(hx - x, hy - y) < 120)) continue;
+      holes.push([x, y, r]);
+    }
+    holes.forEach(([hx, hy, hr]) => {
+      const pts = [], sd = rand() * 40;
+      for (let i = 0; i < 30; i++) { const a = i / 30 * Math.PI * 2, k = 0.55 + 0.6 * fbm(Math.cos(a) * 2 + sd, Math.sin(a) * 2 + sd, sd) + (rand() - 0.5) * 0.12; pts.push([hx + Math.cos(a) * hr * k, hy + Math.sin(a) * hr * k * 1.15]); }
+      const path = (grow = 1) => { g.beginPath(); pts.forEach(([x, y], i) => { const px = hx + (x - hx) * grow, py = hy + (y - hy) * grow; if (i) g.lineTo(px, py); else g.moveTo(px, py); }); g.closePath(); };
+      g.save(); if ('filter' in g) g.filter = 'blur(3px)'; path(1.35); g.fillStyle = 'rgba(96,58,24,.35)'; g.fill(); g.restore();
+      g.save(); path(1.08); g.fillStyle = 'rgba(176,146,104,.9)'; g.fill(); g.restore();   // thin, lighter torn fibre rim
+      g.save(); g.globalCompositeOperation = 'destination-out'; g.fillStyle = '#000'; path(); g.fill(); g.restore();
+    });
+  }
+
+  // the visible edge of the unrolled paper (x), for the current scrollK
+  function unrollEdge() {
+    const e = easeIO(scrollK);
+    return W - e * (W + 120);
+  }
   function drawScroll() {
     if (scrollK < 0.001) return;
+    if (sheetDirty || !sheet) buildSheet();
+    const L = sheetLayout;
+    const ex = unrollEdge();
     const g = scG;
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.globalCompositeOperation = 'source-over';
     g.globalAlpha = 1;
-    g.drawImage(scrollPaper, 0, 0);
+    g.clearRect(0, 0, scC.width, scC.height);
+    g.drawImage(sheet, 0, 0);
     g.setTransform(DPR, 0, 0, DPR, 0, 0);
-    const [px, py] = scr(0, 0);
-    // 内规 and 赤道 as ruled ink circles
-    g.strokeStyle = 'rgba(70,42,22,.5)';
-    g.lineWidth = 0.9;
-    [NEI_GUI, 90].forEach((pd) => { g.beginPath(); g.arc(px, py, pd * S * cam.z, 0, Math.PI * 2); g.stroke(); });
-    g.lineCap = 'round';
-    g.lineJoin = 'round';
-    const zf = Math.sqrt(cam.z);
-    const onScroll = (a) => a.main || a.cpd < 58;
+    // selection and hover: cinnabar rings around the stars, as a reader would mark them
     for (const a of asts) {
-      if (!onScroll(a)) continue;
-      const isSel = sel === a;
-      const red = a.main;
-      // brush line, drawn twice slightly offset for an ink edge
-      g.strokeStyle = a.isWall ? 'rgba(168,52,30,.85)' : 'rgba(42,28,18,.62)';
-      g.lineWidth = a.isWall ? 1.8 : (isSel ? 1.6 : 1);
-      pathLines(g, a.sp, 1); g.stroke();
-      g.save(); g.translate(0.45, 0.3);
-      g.strokeStyle = a.isWall ? 'rgba(168,52,30,.3)' : 'rgba(42,28,18,.22)';
-      pathLines(g, a.sp, 1); g.stroke();
-      g.restore();
-      const r = (red ? 3 : 2.4) * zf * (isSel ? 1.25 : 1);
-      a.sp.forEach((line) => line.forEach(([x, y]) => {
-        if (x < -10 || y < -10 || x > W + 10 || y > H + 10) return;
-        g.fillStyle = red ? 'rgba(178,50,28,.95)' : 'rgba(34,22,14,.88)';
-        g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
-        if (isSel || a.hov > 0.3) {
-          g.strokeStyle = 'rgba(178,50,28,.6)';
-          g.lineWidth = 0.8;
-          g.beginPath(); g.arc(x, y, r + 4, 0, Math.PI * 2); g.stroke();
-        }
+      const k = Math.max(a.light, a.hov * 0.7);
+      if (k < 0.03 || !a.sc) continue;
+      g.save();
+      g.beginPath(); g.arc(L.cx, L.cy, L.r - 8, 0, Math.PI * 2); g.clip();
+      g.globalCompositeOperation = 'multiply';
+      g.strokeStyle = `rgba(${CIN},${0.85 * k})`;
+      g.lineWidth = 1.2;
+      const seen = new Set();
+      a.sc.forEach((line) => line.forEach(([x, y]) => {
+        const key = Math.round(x) + ',' + Math.round(y);
+        if (seen.has(key)) return; seen.add(key);
+        g.beginPath(); g.arc(x, y, 6.5, 0.3, Math.PI * 2 - 0.2); g.stroke();
       }));
+      g.restore();
     }
-    // ink names for every star officer, as on the manuscript
-    for (const a of asts) {
-      if (!onScroll(a)) continue;
-      const [x, y] = labelPos(a);
-      if (x < -20 || x > W + 20 || y < -40 || y > H + 40) continue;
-      const dim = sel && sel !== a ? 0.55 : 1;
-      if (a.main) vText(g, a.name, x, y, (a.isWall ? 16 : 14) * (sel === a ? 1.2 : 1), a.isWall ? `rgba(160,48,26,${0.9 * dim})` : `rgba(40,26,16,${0.9 * dim})`, BRUSH);
-      else vText(g, a.name, x, y, 10.5, `rgba(52,36,22,${0.7 * dim})`, BRUSH);
-    }
-    // radial reveal from the pole
-    const maxR = Math.hypot(Math.max(px, W - px), Math.max(py, H - py)) + 200;
-    const rr = easeIO(scrollK) * maxR;
-    if (scrollK < 1) {
-      g.globalCompositeOperation = 'destination-in';
-      const m = g.createRadialGradient(px, py, Math.max(0, rr - 160), px, py, rr);
-      m.addColorStop(0, 'rgba(0,0,0,1)');
-      m.addColorStop(1, 'rgba(0,0,0,0)');
-      g.fillStyle = m;
-      g.fillRect(0, 0, W, H);
-    }
-    // the lamp burns through the paper to the sky beneath
+    // the lamp burns through to the sky beneath
     if (lamp.amt > 0.01 && scrollK > 0.95) {
       g.globalCompositeOperation = 'destination-out';
       const f = flicker();
@@ -1062,20 +1349,12 @@
       g.fillStyle = m;
       g.fillRect(lamp.x - LR, lamp.y - LR, LR * 2, LR * 2);
     }
+    // only the unrolled part exists
+    if (ex > 0) { g.globalCompositeOperation = 'destination-out'; g.fillStyle = '#000'; g.fillRect(0, 0, ex, H); }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalCompositeOperation = 'source-over';
     ctx.drawImage(scC, 0, 0);
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    if (scrollK > 0 && scrollK < 1) {
-      ctx.globalCompositeOperation = 'lighter';
-      const edge = ctx.createRadialGradient(px, py, Math.max(0, rr - 170), px, py, rr + 10);
-      const a = Math.sin(Math.PI * scrollK) * 0.35;
-      edge.addColorStop(0, 'rgba(255,180,90,0)');
-      edge.addColorStop(0.7, `rgba(255,186,100,${a})`);
-      edge.addColorStop(1, 'rgba(255,180,90,0)');
-      ctx.fillStyle = edge;
-      ctx.fillRect(0, 0, W, H);
-    }
     if (lamp.amt > 0.01 && scrollK > 0.95) {
       ctx.globalCompositeOperation = 'lighter';
       const f = flicker();
@@ -1086,6 +1365,25 @@
       ctx.fillStyle = w;
       ctx.fillRect(lamp.x - LR, lamp.y - LR, LR * 2, LR * 2);
     }
+    if (scrollK < 1 && ex > -60) drawRoller(ex);
+  }
+  // the rolled-up paper and its rod, travelling right to left
+  function drawRoller(ex) {
+    const R = 9 + 11 * (1 - easeIO(scrollK));          // the roll thins as paper leaves it
+    ctx.globalCompositeOperation = 'source-over';
+    const sh = ctx.createLinearGradient(ex, 0, ex + 46, 0);
+    sh.addColorStop(0, 'rgba(30,18,8,.42)'); sh.addColorStop(1, 'rgba(30,18,8,0)');
+    ctx.fillStyle = sh; ctx.fillRect(ex, 0, 46, H);
+    const x0 = ex - 2 * R;
+    const roll = ctx.createLinearGradient(x0, 0, ex, 0);
+    roll.addColorStop(0, '#4a3420'); roll.addColorStop(0.18, '#9c7c52'); roll.addColorStop(0.42, '#e6d3a8');
+    roll.addColorStop(0.55, '#f2e4c2'); roll.addColorStop(0.82, '#b0905e'); roll.addColorStop(1, '#5a4026');
+    ctx.fillStyle = roll; ctx.fillRect(x0, 0, 2 * R, H);
+    ctx.strokeStyle = 'rgba(90,60,30,.25)'; ctx.lineWidth = 0.6;
+    for (let i = 1; i < 5; i++) { const x = x0 + 2 * R * (0.2 + i * 0.14); ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    const back = ctx.createLinearGradient(x0 - 30, 0, x0, 0);
+    back.addColorStop(0, 'rgba(0,0,0,0)'); back.addColorStop(1, 'rgba(0,0,0,.35)');
+    ctx.fillStyle = back; ctx.fillRect(x0 - 30, 0, 30, H);
   }
 
   // ---------- mode transitions ----------
@@ -1231,11 +1529,13 @@
       const target = paused || reduceMotion || scroll ? 0 : (sel ? 0.08 : 0.42);
       spin += (target - spin) * (1 - Math.exp(-dt * 1.5));
       rot += spin * dt;
+      if (scroll) { const d = ((rotS - rot) % 360 + 540) % 360 - 180; rot += d * (1 - Math.exp(-dt * 1.4)); }
     }
     bakeAlpha += (bakeTarget - bakeAlpha) * (1 - Math.exp(-dt * (bakeTarget ? 2 : 8)));
     const sTarget = scroll ? 1 : 0;
     scrollK = clamp(scrollK + Math.sign(sTarget - scrollK) * dt / (reduceMotion ? 0.01 : 2.6), 0, 1);
     body.classList.toggle('is-scroll', scrollK > 0.5);
+    body.classList.toggle('scroll-on', scroll || scrollK > 0.6);
 
     if (tour) {
       const p = (clock - tour.t0) / STOP;
@@ -1260,7 +1560,7 @@
     drawSkyGlow();
 
     const revealDeg = introDone ? 120 : ease((it - 1.3) / 5.6) * 120;
-    if (scrollK < 1 || lamp.amt > 0.01) {
+    if (scrollK < 1 || lamp.amt > 0.01 || true) {
       drawPaperLamp();
       if (bakeAlpha > 0.01) {
         ctx.save();
@@ -1318,9 +1618,11 @@
   // ---------- interaction ----------
   function hit(x, y) {
     let best = null, bestD = mobile ? 26 : 16;
+    const onSheet = scrollK > 0.5;
     for (const a of mainAsts) {
-      if (!a.sp || !a.up) continue;
-      for (const line of a.sp) {
+      const pts = onSheet ? a.sc : a.sp;
+      if (!pts || (!onSheet && !a.up)) continue;
+      for (const line of pts) {
         for (let j = 0; j < line.length; j++) {
           let d = Math.hypot(x - line[j][0], y - line[j][1]);
           if (j > 0) {
@@ -1422,6 +1724,7 @@
       return;
     }
     scroll = !scroll;
+    if (scroll) { const bd = byName.get('北斗'); const nr = ((bd.cra - 180) % 360 + 360) % 360; if (Math.abs(nr - rotS) > 0.01) { rotS = nr; sheetDirty = true; } }
     btnScroll.setAttribute('aria-pressed', String(scroll));
     btnScroll.textContent = scroll ? '收卷' : '展卷';
   });
@@ -1433,6 +1736,8 @@
   if (introDone) body.classList.add('is-in');
   const fontText = asts.map((a) => a.name).join('') + '北西东紫微';
   if (document.fonts && document.fonts.load) {
+    const msText = Object.values(ST.names).join('') + ST.title + ST.colophon + ST.seal + ST.cols.map((c) => c.h + c.t).join('');
+    document.fonts.load('20px "LXGW WenKai TC"', msText).then(() => { sheetDirty = true; }).catch(() => {});
     document.fonts.load('16px "Ma Shan Zheng"', fontText).catch(() => {});
     document.fonts.load('12px "Noto Serif SC"', fontText).catch(() => {});
   }

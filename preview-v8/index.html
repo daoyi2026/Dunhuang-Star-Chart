@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#04060c">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC&family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;600&display=swap">
 <style>
 /* Layout: full-bleed turning sky; title inscribed vertically on the left like a scroll heading; controls top-right; detail panel right.
    Two deliberate looks: night sky (default) and ink-on-paper scroll (.is-scroll). */
@@ -120,6 +120,7 @@ body{font-family:var(--font-serif);-webkit-font-smoothing:antialiased}
 .t-nav .ctl{padding:6px 10px;font-size:12px;letter-spacing:.16em}
 .t-nav .ctl:disabled{opacity:.35;cursor:default}
 
+.scroll-on .title,.scroll-on .seal,.scroll-on .foot{opacity:0!important;pointer-events:none;transition-duration:.5s}
 @keyframes pulse{0%,100%{opacity:.45;transform:scale(.85)}50%{opacity:1;transform:scale(1.1)}}
 @keyframes swap{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
@@ -210,6 +211,7 @@ body{font-family:var(--font-serif);-webkit-font-smoothing:antialiased}
 
 <script src="sky-data.js"></script>
 <script src="texts.js"></script>
+<script src="scroll-text.js"></script>
 <script src="audio.js"></script>
 <script src="app.js"></script>
 </body>
