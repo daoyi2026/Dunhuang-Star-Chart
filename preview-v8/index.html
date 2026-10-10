@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>敦煌星图</title>
+<meta name="description" content="敦煌星图：以唐代天极为中心、可交互的北天星官图。">
+<meta name="theme-color" content="#04060c">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC&family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;600&display=swap">
+<style>
+/* Layout: full-bleed turning sky; title inscribed vertically on the left like a scroll heading; controls top-right; detail panel right.
+   One deliberate night look; the real manuscript opens in a viewer on long-press. */
+:root{
+  --night:#04060c;
+  --panel:rgba(7,9,17,.84);
+  --gold:#d8b06a;
+  --gold-hi:#f4d9a0;
+  --cinnabar:#cf5a3a;
+  --mist:#8c95aa;
+  --silk:#e8dcc4;
+  --silk-2:rgba(232,220,196,.82);
+  --line:rgba(216,176,106,.22);
+  --glow:rgba(244,190,110,.28);
+  --font-brush:"Ma Shan Zheng","STKaiti","KaiTi",serif;
+  --font-serif:"Noto Serif SC","Songti SC","STSong",serif;
+  color-scheme:dark;
+}
+
+html,body{height:100%;margin:0;overflow:hidden;background:var(--night);color:var(--silk)}
+body{font-family:var(--font-serif);-webkit-font-smoothing:antialiased}
+#sky{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.ui{position:fixed;inset:0;pointer-events:none;z-index:2}
+.ui button,.panel,.tour{pointer-events:auto}
+.ui *{transition-property:opacity,transform,color,border-color,background-color;transition-duration:.8s}
+
+/* title */
+.title{position:absolute;left:clamp(20px,4.5vw,72px);top:50%;transform:translateY(-50%);display:flex;flex-direction:row-reverse;align-items:flex-start;gap:clamp(10px,1.2vw,18px);opacity:0;transition:opacity 2.4s ease .2s}
+.is-in .title{opacity:1}
+.v{display:flex;flex-direction:column;align-items:center;margin:0}
+.v span{display:block;line-height:1.08}
+.v .dot{color:var(--cinnabar);line-height:1.6}
+.title-over,.title-sub{font-size:13px;color:var(--mist)}
+.title-over span,.title-sub span{line-height:1.5}
+.title-over{color:var(--gold);opacity:.8;padding-top:.3em}
+.title h1{font-family:var(--font-brush);font-weight:400;font-size:clamp(58px,6.6vw,104px);color:var(--gold-hi);text-shadow:0 0 28px var(--glow)}
+.title h1 span{line-height:1.12}
+.title-sub{padding-top:3.2em}
+.seal{position:absolute;left:clamp(20px,4.5vw,72px);top:calc(50% + clamp(170px,19vw,280px));width:34px;height:34px;border:1.5px solid var(--cinnabar);color:var(--cinnabar);display:grid;grid-template-columns:1fr 1fr;place-items:center;font-family:var(--font-brush);font-size:12px;line-height:1;opacity:0;transition:opacity 2s ease 1.2s;transform:rotate(-2deg)}
+.is-in .seal{opacity:.85}
+
+/* controls */
+.controls{position:absolute;top:calc(20px + env(safe-area-inset-top,0px));right:clamp(16px,3vw,44px);display:flex;gap:8px;opacity:0;transition:opacity 1.6s ease .6s}
+.is-in .controls{opacity:1}
+.ctl{display:flex;align-items:center;gap:9px;padding:8px 12px;background:var(--panel);border:1px solid var(--line);color:var(--gold);font:inherit;font-size:13px;letter-spacing:.24em;cursor:pointer;white-space:nowrap}
+.ctl:hover,.ctl:focus-visible{border-color:var(--gold);outline:none}
+.ctl[aria-pressed="true"]{border-color:var(--gold);color:var(--gold-hi)}
+.sound-dot{width:7px;height:7px;border-radius:50%;border:1px solid var(--gold)}
+.ctl[aria-pressed="true"] .sound-dot{background:var(--gold);box-shadow:0 0 10px var(--gold);animation:pulse 2.6s ease-in-out infinite}
+.skip{position:absolute;bottom:calc(24px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);background:none;border:0;color:var(--mist);font:inherit;font-size:12px;letter-spacing:.4em;cursor:pointer;opacity:.6}
+.skip:hover,.skip:focus-visible{opacity:1;outline:none;color:var(--gold)}
+.is-in .skip{opacity:0;pointer-events:none}
+
+/* 此刻敦煌 */
+.now{position:absolute;top:calc(74px + env(safe-area-inset-top,0px));right:clamp(16px,3vw,44px);margin:0;display:flex;flex-direction:column;align-items:flex-end;gap:5px;font-size:12px;letter-spacing:.14em;color:var(--mist);text-align:right;opacity:0;transform:translateY(-6px);pointer-events:none}
+.is-now .now{opacity:1;transform:none;transition-delay:3.8s}
+.now-where{color:var(--gold)}
+.now-verse{font-family:var(--font-brush);font-size:18px;letter-spacing:.2em;color:var(--gold-hi)}
+.now-sky{color:var(--cinnabar)}
+.epoch{position:absolute;left:50%;top:13%;transform:translateX(-50%);text-align:center;opacity:0;pointer-events:none}
+.epoch.is-on{opacity:1}
+.ep-dyn{display:block;font-family:var(--font-brush);font-size:clamp(40px,5vw,64px);color:var(--gold-hi);text-shadow:0 0 24px var(--glow);letter-spacing:.2em}
+.ep-year{display:block;margin-top:6px;font-size:13px;letter-spacing:.4em;color:var(--gold);font-variant-numeric:tabular-nums}
+
+.foot{position:absolute;left:clamp(20px,4.5vw,72px);right:clamp(16px,3vw,44px);bottom:calc(22px + env(safe-area-inset-bottom,0px));display:flex;justify-content:space-between;align-items:flex-end;gap:24px;font-size:11px;letter-spacing:.14em;color:var(--mist);opacity:0;transition:opacity 2s ease 1s}
+.is-in .foot{opacity:.85}
+.foot p{margin:0}
+.hint{color:var(--gold)}
+.hint.is-gone{opacity:0}
+.hint i{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--gold);margin-right:10px;vertical-align:middle;box-shadow:0 0 10px var(--gold);animation:pulse 2.4s ease-in-out infinite}
+.keys{text-align:right}
+.keys span{color:var(--cinnabar);padding:0 .5em}
+.is-touring .foot{opacity:0}
+
+/* panel */
+.panel{position:absolute;right:clamp(16px,3.5vw,56px);top:50%;width:min(440px,36vw);max-height:min(74vh,700px);overflow-y:auto;display:grid;grid-template-columns:auto minmax(0,1fr);gap:22px;padding:30px 28px 26px 24px;background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);opacity:0;transform:translateY(calc(-50% + 16px));pointer-events:none;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+.has-detail .panel{opacity:1;transform:translateY(-46%);pointer-events:auto}
+.p-name{font-family:var(--font-brush);font-weight:400;font-size:46px;color:var(--gold-hi);text-shadow:0 0 22px var(--glow)}
+.p-body{min-width:0;display:flex;flex-direction:column;gap:14px}
+.p-meta{display:flex;flex-wrap:wrap;gap:6px 14px;margin:0;font-size:11px;letter-spacing:.16em;color:var(--gold);font-variant-numeric:tabular-nums}
+.p-meta span+span::before{content:"·";color:var(--cinnabar);margin-right:14px}
+.p-lead{margin:0;font-size:16px;line-height:1.85;color:var(--silk);text-wrap:pretty}
+.p-detail{margin:0;padding-top:14px;border-top:1px solid var(--line);font-size:13px;line-height:2;color:var(--silk-2);text-wrap:pretty}
+.p-source{margin:0;font-size:11px;letter-spacing:.06em;color:var(--mist)}
+.p-close{position:absolute;top:10px;right:10px;width:32px;height:32px;background:none;border:0;color:var(--mist);font-size:20px;line-height:1;cursor:pointer}
+.p-close:hover,.p-close:focus-visible{color:var(--gold-hi);outline:1px solid var(--line)}
+
+/* tour */
+.tour{position:absolute;right:clamp(16px,3.5vw,56px);bottom:calc(32px + env(safe-area-inset-bottom,0px));width:min(400px,34vw);display:grid;grid-template-columns:auto minmax(0,1fr);gap:20px;padding:24px 24px 18px 22px;background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);opacity:0;transform:translateY(14px);pointer-events:none}
+.is-touring .tour{opacity:1;transform:none;pointer-events:auto}
+.t-name{font-family:var(--font-brush);font-weight:400;font-size:40px;color:var(--gold-hi);text-shadow:0 0 22px var(--glow)}
+.t-body{min-width:0;display:flex;flex-direction:column;gap:12px}
+.t-kick{margin:0;font-size:11px;letter-spacing:.2em;color:var(--gold);font-variant-numeric:tabular-nums}
+.t-text{margin:0;font-size:15px;line-height:1.9;color:var(--silk);text-wrap:pretty}
+.tour.is-swap .t-name,.tour.is-swap .t-text{animation:swap 1.1s ease}
+.t-track{height:1px;background:var(--line);overflow:hidden}
+.t-bar{height:100%;background:var(--gold);transform-origin:left;transform:scaleX(0);transition:none}
+.t-nav{display:flex;gap:8px;justify-content:flex-end}
+.t-nav .ctl{padding:6px 10px;font-size:12px;letter-spacing:.16em}
+.t-nav .ctl:disabled{opacity:.35;cursor:default}
+
+/* relic viewer: the real manuscript */
+.relic{position:fixed;inset:0;z-index:5;display:grid;place-items:center;background:rgba(3,4,9,.0);opacity:0;pointer-events:none;transition:opacity .9s ease,background-color 1.2s ease}
+.relic.is-open{opacity:1;pointer-events:auto;background:rgba(3,4,9,.88)}
+.relic-stage{position:absolute;inset:0;overflow:hidden;touch-action:none;cursor:grab}
+.relic-stage.is-drag{cursor:grabbing}
+.relic-img{position:absolute;left:50%;top:50%;width:var(--rw);height:auto;max-width:none;transform-origin:0 0;user-select:none;-webkit-user-drag:none;
+  box-shadow:0 0 0 1px rgba(216,176,106,.12),0 30px 120px rgba(0,0,0,.6),0 0 160px rgba(255,186,110,.08);
+  filter:brightness(.25) blur(6px);transition:filter 1.6s ease}
+.relic.is-open .relic-img{filter:none}
+.relic-glow{position:absolute;inset:0;pointer-events:none;background:radial-gradient(60% 60% at 50% 50%,rgba(255,180,100,.07),rgba(0,0,0,0) 70%)}
+.relic-cap{position:absolute;left:clamp(20px,4.5vw,72px);bottom:calc(28px + env(safe-area-inset-bottom,0px));margin:0;max-width:min(360px,calc(100vw - 40px));display:flex;flex-direction:column;gap:6px;color:var(--mist);font-size:12px;letter-spacing:.08em;line-height:1.7;opacity:0;transform:translateY(8px);transition:opacity 1s ease .8s,transform 1s ease .8s}
+.relic.is-open .relic-cap{opacity:1;transform:none}
+.relic.is-open.is-zoomed .relic-cap,.relic.is-open.is-zoomed .relic-tip{opacity:0;transition-delay:0s}
+.relic-cap b{font-family:var(--font-brush);font-weight:400;font-size:28px;letter-spacing:.14em;color:var(--gold-hi);line-height:1.2}
+.relic-cap .src{font-size:11px;opacity:.8}
+.relic-cap a{color:var(--gold)}
+.relic-close{position:absolute;top:calc(18px + env(safe-area-inset-top,0px));right:clamp(16px,3vw,44px)}
+.relic-tip{position:absolute;right:clamp(16px,3vw,44px);bottom:calc(28px + env(safe-area-inset-bottom,0px));margin:0;font-size:11px;letter-spacing:.2em;color:var(--mist);opacity:0;transition:opacity 1s ease 1.2s}
+.relic.is-open .relic-tip{opacity:.8}
+.relic-open .ui .controls,.relic-open .ui .foot,.relic-open .ui .title,.relic-open .ui .seal,.relic-open .ui .now{opacity:0!important;pointer-events:none}
+@media (max-width:760px){.relic-tip{display:none}.relic-cap{bottom:calc(20px + env(safe-area-inset-bottom,0px))}.relic-cap b{font-size:22px}}
+@keyframes pulse{0%,100%{opacity:.45;transform:scale(.85)}50%{opacity:1;transform:scale(1.1)}}
+@keyframes swap{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+@media (max-width:760px){
+  .title{top:calc(22px + env(safe-area-inset-top,0px));transform:none;left:18px;flex-direction:column;gap:6px}
+  .title .v{flex-direction:row;align-items:baseline}
+  .title-over,.title-sub{font-size:10px;letter-spacing:.3em;padding:0}
+  .title h1{font-size:40px;letter-spacing:.1em}
+  .v .dot{padding:0 .5em;line-height:1.2}
+  .seal{display:none}
+  .controls{top:auto;bottom:calc(14px + env(safe-area-inset-bottom,0px));left:12px;right:12px;justify-content:space-between;gap:6px}
+  .ctl{padding:8px 8px;font-size:12px;letter-spacing:.1em;flex:1;justify-content:center}
+  .now{top:calc(118px + env(safe-area-inset-top,0px));left:18px;right:auto;align-items:flex-start;text-align:left;font-size:10px;letter-spacing:.08em}
+  .now-verse{font-size:15px}
+  .epoch{top:30%}
+  .foot{left:18px;right:18px;bottom:calc(64px + env(safe-area-inset-bottom,0px));font-size:10px;letter-spacing:.08em}
+  .foot .keys{display:none}
+  .panel{left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));top:auto;width:auto;max-height:56vh;grid-template-columns:minmax(0,1fr);gap:10px;padding:22px 20px 18px;transform:translateY(16px);z-index:3}
+  .has-detail .panel{transform:none}
+  .p-name,.t-name{flex-direction:row;font-size:34px}
+  .p-name span,.t-name span{line-height:1.1}
+  .has-detail .foot,.has-detail .controls{opacity:0;pointer-events:none}
+  .is-in.has-detail .title,.is-touring .title,.is-now.is-touring .now{opacity:.25}
+  .tour{left:12px;right:12px;width:auto;bottom:calc(62px + env(safe-area-inset-bottom,0px));grid-template-columns:minmax(0,1fr);gap:8px;padding:18px 18px 14px}
+}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition-duration:.01ms!important}}
+</style>
+
+</head>
+<body>
+<canvas id="sky" aria-label="以唐代北天极为中心缓缓转动的星图，可点选星官"></canvas>
+
+<div class="ui">
+  <header class="title">
+    <p class="title-over v"><span>敦</span><span>煌</span><span class="dot">·</span><span>唐</span><span>代</span><span>星</span><span>官</span></p>
+    <h1 class="v" aria-label="敦煌星图"><span>敦</span><span>煌</span><span>星</span><span>图</span></h1>
+    <p class="title-sub v"><span>星</span><span>河</span><span>遗</span><span>卷</span><span class="dot">·</span><span>众</span><span>星</span><span>拱</span><span>极</span></p>
+  </header>
+  <div class="seal" aria-hidden="true"><span>觀</span><span>星</span><span>無</span><span>盡</span></div>
+
+  <nav class="controls" aria-label="视图">
+    <button id="btnTour" class="ctl" type="button" aria-pressed="false">入宫导览</button>
+    <button id="btnRelic" class="ctl" type="button" aria-haspopup="dialog">古卷</button>
+    <button id="btnNow" class="ctl" type="button" aria-pressed="false">此刻敦煌</button>
+    <button id="sound" class="ctl" type="button" aria-pressed="false"><span class="sound-dot" aria-hidden="true"></span><span class="sound-label">听星河</span></button>
+  </nav>
+
+  <div class="now" aria-live="polite">
+    <span id="nowWhere" class="now-where"></span>
+    <span id="nowTime"></span>
+    <span id="nowVerse" class="now-verse"></span>
+    <span id="nowSky" class="now-sky" hidden></span>
+  </div>
+  <div id="epoch" class="epoch" aria-hidden="true"><span class="ep-dyn">唐</span><span class="ep-year">公元 700 年</span></div>
+
+  <button id="skip" class="skip" type="button">点击跳过</button>
+
+  <footer class="foot">
+    <p id="hint" class="hint"><i aria-hidden="true"></i>点选星官 · 长按观古卷</p>
+    <p class="keys">星位据现代星表推算岁差<span>/</span>空格 停转<span>/</span>←→ 导览换站<span>/</span>Esc 收起</p>
+  </footer>
+
+  <aside id="panel" class="panel" aria-live="polite" aria-hidden="true">
+    <button id="pClose" class="p-close" type="button" aria-label="收起">×</button>
+    <h2 id="pName" class="p-name v"></h2>
+    <div class="p-body">
+      <p class="p-meta"><span id="pIndex"></span><span id="pCount"></span><span id="pPolar"></span></p>
+      <p id="pLead" class="p-lead"></p>
+      <p id="pDetail" class="p-detail"></p>
+      <p id="pSource" class="p-source"></p>
+    </div>
+  </aside>
+
+  <section id="tour" class="tour" aria-live="polite" aria-hidden="true" aria-label="星官导览">
+    <h2 id="tName" class="t-name v"></h2>
+    <div class="t-body">
+      <p id="tKick" class="t-kick"></p>
+      <p id="tText" class="t-text"></p>
+      <div class="t-track" aria-hidden="true"><div id="tBar" class="t-bar"></div></div>
+      <div class="t-nav">
+        <button id="tPrev" class="ctl" type="button">上一站</button>
+        <button id="tNext" class="ctl" type="button">下一站</button>
+        <button id="tExit" class="ctl" type="button">退出</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div id="relic" class="relic" role="dialog" aria-modal="true" aria-label="敦煌星图原件 · 紫微宫" aria-hidden="true">
+  <div class="relic-glow" aria-hidden="true"></div>
+  <div id="relicStage" class="relic-stage">
+    <img id="relicImg" class="relic-img" src="dunhuang-ziwei.jpg" alt="敦煌星图原件紫微宫部分：黄褐色纸上以墨点、黄点绘北天极附近的星官，旁注星名，右侧竖行写有占文" draggable="false" decoding="async">
+  </div>
+  <p class="relic-cap">
+    <b>敦煌星图 · 紫微宫</b>
+    <span>唐代写本，一般推定绘于公元七世纪中后期。全卷绘一千三百余星，此为北天极紫微宫一段。1900 年出自莫高窟藏经洞，今藏大英图书馆，编号 Or.8210/S.3326。</span>
+    <span class="src">图片：<a href="https://commons.wikimedia.org/wiki/File:Dunhuang_star_map.jpg" target="_blank" rel="noopener">Wikimedia Commons</a>，公有领域扫描</span>
+  </p>
+  <p class="relic-tip">滚轮缩放 · 拖动查看 · 双击放大 · Esc 关闭</p>
+  <button id="relicClose" class="ctl relic-close" type="button">回到星空</button>
+</div>
+
+<script src="sky-data.js"></script>
+<script src="texts.js"></script>
+<script src="audio.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
