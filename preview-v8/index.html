@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC&family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;600&display=swap">
 <style>
 /* Layout: full-bleed turning sky; title inscribed vertically on the left like a scroll heading; controls top-right; detail panel right.
-   Two deliberate looks: night sky (default) and ink-on-paper scroll (.is-scroll). */
+   One deliberate night look; the real manuscript opens in a viewer on long-press. */
 :root{
   --night:#04060c;
   --panel:rgba(7,9,17,.84);
@@ -27,17 +27,7 @@
   --font-serif:"Noto Serif SC","Songti SC","STSong",serif;
   color-scheme:dark;
 }
-body.is-scroll{
-  --panel:rgba(226,206,166,.94);
-  --gold:#7a4424;
-  --gold-hi:#2f1d10;
-  --cinnabar:#a8341e;
-  --mist:#6b5238;
-  --silk:#2d1f14;
-  --silk-2:rgba(45,31,20,.86);
-  --line:rgba(90,56,28,.3);
-  --glow:rgba(0,0,0,0);
-}
+
 html,body{height:100%;margin:0;overflow:hidden;background:var(--night);color:var(--silk)}
 body{font-family:var(--font-serif);-webkit-font-smoothing:antialiased}
 #sky{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
@@ -120,7 +110,27 @@ body{font-family:var(--font-serif);-webkit-font-smoothing:antialiased}
 .t-nav .ctl{padding:6px 10px;font-size:12px;letter-spacing:.16em}
 .t-nav .ctl:disabled{opacity:.35;cursor:default}
 
-.scroll-on .title,.scroll-on .seal,.scroll-on .foot{opacity:0!important;pointer-events:none;transition-duration:.5s}
+/* relic viewer: the real manuscript */
+.relic{position:fixed;inset:0;z-index:5;display:grid;place-items:center;background:rgba(3,4,9,.0);opacity:0;pointer-events:none;transition:opacity .9s ease,background-color 1.2s ease}
+.relic.is-open{opacity:1;pointer-events:auto;background:rgba(3,4,9,.88)}
+.relic-stage{position:absolute;inset:0;overflow:hidden;touch-action:none;cursor:grab}
+.relic-stage.is-drag{cursor:grabbing}
+.relic-img{position:absolute;left:50%;top:50%;width:var(--rw);height:auto;max-width:none;transform-origin:0 0;user-select:none;-webkit-user-drag:none;
+  box-shadow:0 0 0 1px rgba(216,176,106,.12),0 30px 120px rgba(0,0,0,.6),0 0 160px rgba(255,186,110,.08);
+  filter:brightness(.25) blur(6px);transition:filter 1.6s ease}
+.relic.is-open .relic-img{filter:none}
+.relic-glow{position:absolute;inset:0;pointer-events:none;background:radial-gradient(60% 60% at 50% 50%,rgba(255,180,100,.07),rgba(0,0,0,0) 70%)}
+.relic-cap{position:absolute;left:clamp(20px,4.5vw,72px);bottom:calc(28px + env(safe-area-inset-bottom,0px));margin:0;max-width:min(360px,calc(100vw - 40px));display:flex;flex-direction:column;gap:6px;color:var(--mist);font-size:12px;letter-spacing:.08em;line-height:1.7;opacity:0;transform:translateY(8px);transition:opacity 1s ease .8s,transform 1s ease .8s}
+.relic.is-open .relic-cap{opacity:1;transform:none}
+.relic.is-open.is-zoomed .relic-cap,.relic.is-open.is-zoomed .relic-tip{opacity:0;transition-delay:0s}
+.relic-cap b{font-family:var(--font-brush);font-weight:400;font-size:28px;letter-spacing:.14em;color:var(--gold-hi);line-height:1.2}
+.relic-cap .src{font-size:11px;opacity:.8}
+.relic-cap a{color:var(--gold)}
+.relic-close{position:absolute;top:calc(18px + env(safe-area-inset-top,0px));right:clamp(16px,3vw,44px)}
+.relic-tip{position:absolute;right:clamp(16px,3vw,44px);bottom:calc(28px + env(safe-area-inset-bottom,0px));margin:0;font-size:11px;letter-spacing:.2em;color:var(--mist);opacity:0;transition:opacity 1s ease 1.2s}
+.relic.is-open .relic-tip{opacity:.8}
+.relic-open .ui .controls,.relic-open .ui .foot,.relic-open .ui .title,.relic-open .ui .seal,.relic-open .ui .now{opacity:0!important;pointer-events:none}
+@media (max-width:760px){.relic-tip{display:none}.relic-cap{bottom:calc(20px + env(safe-area-inset-bottom,0px))}.relic-cap b{font-size:22px}}
 @keyframes pulse{0%,100%{opacity:.45;transform:scale(.85)}50%{opacity:1;transform:scale(1.1)}}
 @keyframes swap{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
@@ -163,7 +173,7 @@ body{font-family:var(--font-serif);-webkit-font-smoothing:antialiased}
 
   <nav class="controls" aria-label="视图">
     <button id="btnTour" class="ctl" type="button" aria-pressed="false">入宫导览</button>
-    <button id="btnScroll" class="ctl" type="button" aria-pressed="false">展卷</button>
+    <button id="btnRelic" class="ctl" type="button" aria-haspopup="dialog">古卷</button>
     <button id="btnNow" class="ctl" type="button" aria-pressed="false">此刻敦煌</button>
     <button id="sound" class="ctl" type="button" aria-pressed="false"><span class="sound-dot" aria-hidden="true"></span><span class="sound-label">听星河</span></button>
   </nav>
@@ -179,7 +189,7 @@ body{font-family:var(--font-serif);-webkit-font-smoothing:antialiased}
   <button id="skip" class="skip" type="button">点击跳过</button>
 
   <footer class="foot">
-    <p id="hint" class="hint"><i aria-hidden="true"></i>移灯照卷，点选星官</p>
+    <p id="hint" class="hint"><i aria-hidden="true"></i>点选星官 · 长按观古卷</p>
     <p class="keys">星位据现代星表推算岁差<span>/</span>空格 停转<span>/</span>←→ 导览换站<span>/</span>Esc 收起</p>
   </footer>
 
@@ -209,9 +219,22 @@ body{font-family:var(--font-serif);-webkit-font-smoothing:antialiased}
   </section>
 </div>
 
+<div id="relic" class="relic" role="dialog" aria-modal="true" aria-label="敦煌星图原件 · 紫微宫" aria-hidden="true">
+  <div class="relic-glow" aria-hidden="true"></div>
+  <div id="relicStage" class="relic-stage">
+    <img id="relicImg" class="relic-img" src="dunhuang-ziwei.jpg" alt="敦煌星图原件紫微宫部分：黄褐色纸上以墨点、黄点绘北天极附近的星官，旁注星名，右侧竖行写有占文" draggable="false" decoding="async">
+  </div>
+  <p class="relic-cap">
+    <b>敦煌星图 · 紫微宫</b>
+    <span>唐代写本，一般推定绘于公元七世纪中后期。全卷绘一千三百余星，此为北天极紫微宫一段。1900 年出自莫高窟藏经洞，今藏大英图书馆，编号 Or.8210/S.3326。</span>
+    <span class="src">图片：<a href="https://commons.wikimedia.org/wiki/File:Dunhuang_star_map.jpg" target="_blank" rel="noopener">Wikimedia Commons</a>，公有领域扫描</span>
+  </p>
+  <p class="relic-tip">滚轮缩放 · 拖动查看 · 双击放大 · Esc 关闭</p>
+  <button id="relicClose" class="ctl relic-close" type="button">回到星空</button>
+</div>
+
 <script src="sky-data.js"></script>
 <script src="texts.js"></script>
-<script src="scroll-text.js"></script>
 <script src="audio.js"></script>
 <script src="app.js"></script>
 </body>
